@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     display: { brand_name: cfg.server.ui.brand_name, brand_icon: cfg.server.ui.brand_icon, local_timezone: cfg.server.local_timezone, public_url: cfg.server.public_url, tile: cfg.server.ui.tile_provider, tile_dark: cfg.server.ui.tile_provider_dark, temperature_unit: cfg.server.ui.temperature_unit },
     analytics: { enabled: an.enabled, measurement_id: an.measurement_id, client: an.client, server: an.server, has_api_secret: !!an.api_secret },
     updates: { enabled: cfg.server.updates.enabled, github_repo: cfg.server.updates.github_repo },
+    geo_fence: cfg.ingest.geo_fence,
     map_max_age: cfg.server.ui.map_max_age,
     map_center: cfg.server.ui.map_center,
     social_links: cfg.server.ui.social_links,
@@ -87,7 +88,16 @@ export async function POST(req: NextRequest) {
 
   // Update checker: only fire on a well-formed owner/name; blank keeps the default repo.
   const updRepo = String(b.updates?.github_repo ?? "").trim().slice(0, 120);
+  // Geo-fence bounding box: clamp to valid lat/lon; a value out of range is treated as 0.
+  const coord = (v: unknown, lim: number) => { const n = Number(v); return Number.isFinite(n) && Math.abs(n) <= lim ? n : 0; };
   const patch = {
+    ingest: {
+      geo_fence: {
+        enabled: !!b.geo_fence?.enabled,
+        min_lat: coord(b.geo_fence?.min_lat, 90), max_lat: coord(b.geo_fence?.max_lat, 90),
+        min_lon: coord(b.geo_fence?.min_lon, 180), max_lon: coord(b.geo_fence?.max_lon, 180),
+      },
+    },
     server: {
       local_timezone: tz,
       public_url: socialUrl(b.display?.public_url).replace(/\/$/, ""), // http(s) only, no trailing slash

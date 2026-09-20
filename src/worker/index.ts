@@ -5,6 +5,7 @@ import { closePool } from "../db/client.ts";
 import { runMigrations } from "../db/migrate.ts";
 import { runHourlyRollups, runDailyRollups, refoldRecentHours, materializeDirectRoster } from "./rollups.ts";
 import { runRetention } from "./retention.ts";
+import { runGeoFence } from "./geofence.ts";
 import { evaluateAlerts } from "./alerts.ts";
 import { maybeRunDigest } from "./digest.ts";
 import { updateSpamScores, applyConfigMuteSeed } from "./spam.ts";
@@ -121,6 +122,7 @@ async function main(): Promise<void> {
         if (n) console.log(`[worker] folded ${n} day(s)`);
       });
       await safe("retention", runRetention);
+      await safe("geo-fence", () => runGeoFence(c));
       await safe("tx-log-trim", () => trimTxLog(3));
       await safe("wx-alert-trim", () => trimAlertsSent(30));
       await safe("spam-scores", () => updateSpamScores(c));

@@ -11,6 +11,7 @@ export interface GeneralSettings {
   social_links: { facebook: string; discord: string; website: string };
   privacy: { metrics_public: boolean; fuzz_positions: boolean; fuzz_decimals: number };
   updates: { enabled: boolean; github_repo: string };
+  geo_fence: { enabled: boolean; min_lat: number; max_lat: number; min_lon: number; max_lon: number };
   retention: { raw_payload_days: number; decoded_packet_days: number; telemetry_days: number; reception_rollup_hour_days: number; live_events_minutes: number };
   features: { live_views: boolean; aprs_is_export: boolean; reference_sheet_pdf: boolean; ambience_mode: boolean };
   livemap: { enabled: boolean; inference_window_hours: number; gateway_rings_default: boolean; audio_default: boolean; max_animations_per_sec: number; trail_decay_seconds: number };
@@ -40,6 +41,7 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
   const soc = (k: keyof GeneralSettings["social_links"], v: string) => setS({ ...s, social_links: { ...s.social_links, [k]: v } });
   const priv = <K extends keyof GeneralSettings["privacy"]>(k: K, v: GeneralSettings["privacy"][K]) => setS({ ...s, privacy: { ...s.privacy, [k]: v } });
   const upd = <K extends keyof GeneralSettings["updates"]>(k: K, v: GeneralSettings["updates"][K]) => setS({ ...s, updates: { ...s.updates, [k]: v } });
+  const gf = <K extends keyof GeneralSettings["geo_fence"]>(k: K, v: GeneralSettings["geo_fence"][K]) => setS({ ...s, geo_fence: { ...s.geo_fence, [k]: v } });
 
   function onIcon(file?: File) {
     setError(null);
@@ -181,6 +183,18 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
           {numField("Reception rollups", s.retention.reception_rollup_hour_days, (v) => ret("reception_rollup_hour_days", v))}
           {numField("Live events (min)", s.retention.live_events_minutes, (v) => ret("live_events_minutes", v))}
         </div>
+      </div>
+
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="stat-label">Geo-fence (ingest)</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.geo_fence.enabled} onChange={(e) => gf("enabled", e.target.checked)} /> Hide nodes outside the box</label>
+          <label className="space-y-1"><span className="block stat-label">Min lat</span><input type="number" step="0.001" value={s.geo_fence.min_lat} onChange={(e) => gf("min_lat", Number(e.target.value))} className={`${inp} w-28`} /></label>
+          <label className="space-y-1"><span className="block stat-label">Max lat</span><input type="number" step="0.001" value={s.geo_fence.max_lat} onChange={(e) => gf("max_lat", Number(e.target.value))} className={`${inp} w-28`} /></label>
+          <label className="space-y-1"><span className="block stat-label">Min lon</span><input type="number" step="0.001" value={s.geo_fence.min_lon} onChange={(e) => gf("min_lon", Number(e.target.value))} className={`${inp} w-28`} /></label>
+          <label className="space-y-1"><span className="block stat-label">Max lon</span><input type="number" step="0.001" value={s.geo_fence.max_lon} onChange={(e) => gf("max_lon", Number(e.target.value))} className={`${inp} w-28`} /></label>
+        </div>
+        <p className="text-[11px] text-ink-faint">When on, nodes whose known position falls outside this lat/lon box are marked position-ignored (hidden from maps, coverage, and the graph) on the worker's next slow pass. It only hides, never deletes; a node hidden by mistake can be un-ignored on its node page. Leave off (or a zero box) to disable.</p>
       </div>
 
       <div className="space-y-2 border-t border-line pt-3">

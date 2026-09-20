@@ -255,7 +255,20 @@ const ingest = z
         tolerate_malformed: z.boolean().default(true),
         // "default" covers the LongFast default channel; LongTurbo is the US firmware default as of
         // v2.8 and uses the same default key, so seed it too for correct channel attribution.
-        channel_keys: z.array(channelKey).default([{ name: "default", key: "AQ==" }, { name: "LongTurbo", key: "AQ==" }]),
+        channel_keys: z.array(channelKey).default([{ name: "default", key: "AQ==" }, { name: "LongTurbo", key: "AQ==" }, { name: "Wardrive", key: "AQ==" }]),
+      })
+      .default({}),
+    // Geo-fence: when enabled, nodes whose known position falls outside this lat/lon bounding box are
+    // marked position_ignored, so a far-off region bridged in over MQTT stops polluting the local maps
+    // and coverage. Reuses position_ignored (already excluded everywhere), so it hides rather than
+    // deletes; only sets the flag, never clears, so it never undoes an admin's manual ignore.
+    geo_fence: z
+      .object({
+        enabled: z.boolean().default(false),
+        min_lat: z.number().default(0),
+        max_lat: z.number().default(0),
+        min_lon: z.number().default(0),
+        max_lon: z.number().default(0),
       })
       .default({}),
   });
