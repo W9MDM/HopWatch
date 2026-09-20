@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "../lib/cn.ts";
 import { subscribeLiveEvent } from "../lib/livesse.ts";
+import { HOP_SCALE } from "../lib/mapicons.ts";
 
 interface GNode { id: number; name: string | null; short: string | null; role: string | null; is_gateway: number; degree: number; mqtt_only?: number }
 interface GEdge { a: number; b: number; type: "direct" | "relayed" | "traceroute" | "neighbor" }
@@ -233,16 +234,24 @@ export function MeshGraph() {
     const draw = () => {
       ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
       ctx.clearRect(0, 0, s.w, s.h);
-      // Faint concentric hop-ring guides, one per hop out from the gateway core, so the layout
-      // reads as "further out = more hops". Drawn under everything else.
+      // Concentric hop-ring guides, one per hop out from the gateway core. Each ring is tinted with
+      // its hop-count color from the shared HOP_SCALE (the same palette as the map hop legend) and
+      // labeled, so "further out = more hops" reads at a glance. Drawn under everything else.
       if (s.maxRing > 0) {
-        ctx.strokeStyle = "#6f6e67";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
+        ctx.font = "11px ui-sans-serif, system-ui";
+        ctx.textAlign = "center";
         for (let ring = 0; ring <= s.maxRing; ring++) {
-          ctx.globalAlpha = 0.07;
+          const color = HOP_SCALE[Math.min(ring, 7)]!;
+          const r = (ring + 1) * RING_SPACING * s.zoom;
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = 0.4;
           ctx.beginPath();
-          ctx.arc(sx(0), sy(0), (ring + 1) * RING_SPACING * s.zoom, 0, Math.PI * 2);
+          ctx.arc(sx(0), sy(0), r, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = color;
+          ctx.fillText(ring >= 7 ? "7+ hops" : `${ring} hop${ring === 1 ? "" : "s"}`, sx(0), sy(0) - r - 4);
         }
         ctx.globalAlpha = 1;
       }
