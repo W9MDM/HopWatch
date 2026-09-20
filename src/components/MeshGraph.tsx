@@ -332,8 +332,11 @@ export function MeshGraph() {
         ctx.stroke();
       }
       ctx.globalAlpha = 1;
-      // Labels
-      const showAll = labels && s.nodes.length <= 400 && s.zoom > 0.5;
+      // Labels: the toggle always takes effect. Labeling every node on a big mesh while zoomed out
+      // is an unreadable soup, so below ~0.5 zoom on a large graph we label only the backbone
+      // (gateways + high-degree nodes); zoom in and every node is labeled.
+      const showAll = labels;
+      const backboneOnly = labels && s.zoom <= 0.5 && s.nodes.length > 120;
       const labelSet = activeSet;
       if (showAll || labelSet) {
         ctx.font = "11px ui-sans-serif, system-ui";
@@ -341,6 +344,7 @@ export function MeshGraph() {
         ctx.textAlign = "center";
         for (const n of s.nodes) {
           if (!showAll && labelSet && !labelSet.has(n)) continue;
+          if (showAll && !(labelSet && labelSet.has(n)) && backboneOnly && !n.is_gateway && (n.degree ?? 0) < 6) continue;
           const label = n.name ?? n.short ?? fmtId(n.id);
           ctx.fillText(label, sx(n.x), sy(n.y) - nodeRadius(n) - 4);
         }
@@ -587,7 +591,7 @@ export function MeshGraph() {
         </select>
         <button className={toggle(traceroute)} onClick={() => setTraceroute((v) => !v)}>Traceroute links</button>
         <button className={toggle(relayed)} onClick={() => setRelayed((v) => !v)}>Relayed links</button>
-        <button className={toggle(labels)} onClick={() => setLabels((v) => !v)}>Labels</button>
+        <button className={toggle(labels)} onClick={() => setLabels((v) => !v)} title="Show node names. On a large mesh while zoomed out, only the backbone (gateways + hubs) is labeled; zoom in to see every node's label.">Labels</button>
         <button className={toggle(live)} onClick={() => setLive((v) => !v)}>Live</button>
         <button className={btn} onClick={() => fitView()}>Fit</button>
         <button className={btn} onClick={() => { sim.current.alpha = 1; }}>Reheat</button>
