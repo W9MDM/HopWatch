@@ -1,0 +1,63 @@
+{
+  "__inputs": [
+    { "name": "DS_PROMETHEUS", "label": "Prometheus", "description": "HopWatch /metrics scrape", "type": "datasource", "pluginId": "prometheus", "pluginName": "Prometheus" }
+  ],
+  "title": "HopWatch",
+  "uid": "hopwatch",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Active nodes (24h)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_active_nodes_24h", "refId": "A" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Gateways active",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_gateways_active", "refId": "A" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Direct pairs",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_direct_pairs_total", "refId": "A" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Rollup watermark age (s)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 7200 }] } } },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_rollup_watermark_age_seconds", "refId": "A" }]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Ingest lag (s)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_ingest_lag_seconds", "refId": "A" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Broker connected",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "hopwatch_broker_connected", "legendFormat": "{{broker}}", "refId": "A" }]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Broker message rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "rate(hopwatch_broker_messages_total[5m])", "legendFormat": "{{broker}}", "refId": "A" }]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Malformed rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "rate(hopwatch_broker_malformed_total[5m])", "legendFormat": "{{broker}}", "refId": "A" }]
+    }
+  ]
+}

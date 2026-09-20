@@ -1,0 +1,18 @@
+[Unit]
+Description=HopWatch worker (rollups, alerts, retention)
+After=network-online.target mysql.service mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__WORKDIR__
+EnvironmentFile=__WORKDIR__/.env
+Environment=NODE_ENV=production
+Environment=PATH=__NODEBIN__:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env npm run worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

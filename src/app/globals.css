@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   HopWatch theme. Adopted from the TARA Portal design system:
+   dark-only, warm-neutral charcoal, one red accent spent carefully.
+   Hierarchy from weight, case, and ink level, not large type or shadow.
+   No blue-gray cast anywhere. No em dashes in any copy.
+------------------------------------------------------------------- */
+@theme {
+  /* surfaces (darkest to lightest) */
+  --color-canvas: #0b0b0a;
+  --color-surface: #141412;
+  --color-raised: #1c1c1a;
+  --color-line: #272725;
+  --color-line-strong: #3a3a36;
+
+  /* text */
+  --color-ink: #f2f1ed;
+  --color-ink-mute: #a4a39c;
+  --color-ink-faint: #6f6e67;
+
+  /* brand + semantic */
+  --color-accent: #d92b2b;
+  --color-accent-strong: #f04747;
+  --color-ok: #3f9e63;
+  --color-gold: #e0b43a;
+  --color-gold-ink: #e6bb54;
+
+  /* HopWatch data tokens. Categorical, warm, distinguishable, never pure blue.
+     The accent red is reserved for primary action / active tab and is NOT used
+     for data classes below. */
+  --color-rx-direct: #3f9e63;      /* confirmed RF direct  */
+  --color-rx-lowconf: #6f8f5a;     /* low-confidence direct */
+  --color-rx-relayed: #e0b43a;     /* relayed              */
+  --color-rx-mqtt: #8a8a84;        /* mqtt self / injected */
+  --color-rx-never: #3a3a36;       /* never heard          */
+
+  /* node roles (consistent across map, graph, tables) */
+  --color-role-client: #a4a39c;
+  --color-role-client-mute: #6f6e67;
+  --color-role-router: #3f9e63;
+  --color-role-router-client: #5bb37e;
+  --color-role-repeater: #e0b43a;
+
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    /* Guard on html as well as body: iOS Safari can still pan the page horizontally when only
+       body clips, which left the whole layout shifted off the left edge on phones. */
+    overflow-x: hidden;
+  }
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* Never let a wide child (a header row, a table) push the whole page sideways on mobile;
+       wide content scrolls inside its own overflow-x-auto container instead. */
+    overflow-x: hidden;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+}
+
+@layer components {
+  /* Card: canvas -> surface step plus a hairline border. */
+  .card {
+    @apply rounded-xl border border-line bg-surface p-5;
+  }
+
+  /* Section header (the signature motif): 2px accent bar means "a group starts here". */
+  .eyebrow {
+    @apply flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-ink-mute;
+  }
+  .eyebrow-bar {
+    @apply block h-3.5 w-0.5 bg-accent;
+  }
+
+  .stat {
+    @apply text-2xl font-semibold tabular-nums text-ink;
+  }
+  .stat-label {
+    @apply text-[13px] font-medium tracking-wide text-ink-mute;
+  }
+
+  .mono {
+    @apply font-mono text-[13px];
+  }
+  .callsign {
+    @apply rounded border border-line-strong bg-raised px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent-strong;
+  }
+
+  /* Data table */
+  table.data {
+    @apply w-full border-collapse text-[13px];
+  }
+  table.data th {
+    @apply border-b border-line px-2 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-ink-faint;
+  }
+  table.data td {
+    @apply border-b border-line/60 px-2 py-1.5 text-ink;
+  }
+  table.data tr:hover td {
+    @apply bg-raised;
+  }
+
+  /* Status pill */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider;
+  }
+  .pill-on {
+    @apply border-ok/50 bg-ok/10 text-ok;
+  }
+  .pill-off {
+    @apply border-line-strong text-ink-faint;
+  }
+
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-outline {
+    @apply border border-line-strong text-ink hover:bg-raised;
+  }
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-accent-strong;
+  }
+
+}
+
+/* Touch ergonomics (a11y/field audit): on touch/coarse-pointer devices, guarantee interactive
+   controls meet a ~44px comfortable tap target without changing the tighter desktop layout.
+   Scoped to (pointer: coarse) so mouse users are unaffected. Outside @layer so it is not
+   purged and reliably wins over utility heights on the small map-control chips. */
+@media (pointer: coarse) {
+  .btn,
+  button:not(.maplibregl-ctrl button),
+  select {
+    min-height: 40px;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Popup theming lives OUTSIDE @layer on purpose: maplibre-gl.css is imported unlayered
+   from the map components, so a layered rule (even more specific) would lose to it and
+   the default white popup box would show through. Unlayered here so it always wins. */
+.maplibregl-popup.hw-popup .maplibregl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.maplibregl-popup.hw-popup .maplibregl-popup-tip {
+  display: none !important;
+}
+
+/* Embed/kiosk mode: pages loaded inside the kiosk rotator (with ?embed=1) hide the app
+   chrome so only the content fills the screen. Set on <html> by the KioskChrome client
+   component; unlayered so it reliably wins. */
+html[data-embed="1"] header,
+html[data-embed="1"] footer {
+  display: none !important;
+}
+html[data-embed="1"] main {
+  padding: 0 !important;
+}
+
+/* RF neighbor graph: node labels link to their node pages; underline the label on hover. */
+.hw-neighbor-link text { transition: fill 0.1s ease; }
+.hw-neighbor-link:hover text { fill: var(--accent, #4ea1ff); text-decoration: underline; }
+.hw-neighbor-link:hover circle { r: 5; }

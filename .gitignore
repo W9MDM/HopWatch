@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+data/
+*.log
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+
+# Deployment-specific runtime config: each install keeps its own, seeded from
+# config/hopwatch.example.yaml. Tracking it caused pull conflicts on every deploy.
+config/hopwatch.yaml
+
+# Upstream Meshtastic source fetched into the repo root for reference (protobuf .proto files,
+# firmware .cpp/.h). These belong in a scratch directory, never in the tree: HopWatch consumes
+# the schemas through the @meshtastic/protobufs package, so a stray copy here is dead weight that
+# will silently drift from upstream. Root-only, so a real project file in a subdirectory is safe.
+/*.proto
+/*.cpp
+/*.hpp

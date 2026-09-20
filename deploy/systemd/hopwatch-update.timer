@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the HopWatch auto-update check every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+RandomizedDelaySec=10s
+
+[Install]
+WantedBy=timers.target

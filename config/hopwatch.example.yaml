@@ -1,0 +1,129 @@
+# HopWatch configuration. Copy to config/hopwatch.yaml and edit.
+# Every key is overridable by an env var: HOPWATCH_<DOTTED_PATH_UPPERCASED>
+#   e.g. server.port -> HOPWATCH_SERVER_PORT
+#        database.mysql.password -> HOPWATCH_DATABASE_MYSQL_PASSWORD
+#        ingest.brokers[0].host -> HOPWATCH_INGEST_BROKERS_0_HOST
+# ${VAR} placeholders inside string values are resolved from the environment.
+version: 1
+
+server:
+  host: 0.0.0.0                         # web bind address (PORT/HOST env vars override these)
+  port: 3000                            # web listen port
+  local_timezone: America/Chicago      # storage is always UTC; this is the render tz
+  auth:
+    anonymous_read_only: true           # false -> reads require a bearer token
+    session_secret: "${HOPWATCH_SESSION_SECRET}"  # HMAC key for admin cookies; set in env
+    admin_users_seed:                   # seeded once when admin_users is empty
+      - { username: admin, password: "${HOPWATCH_ADMIN_PASSWORD}" }
+  ui:
+    brand_name: HopWatch
+    tile_provider:                      # default works with no third-party key (Malla #48)
+      name: osm
+      url_template: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution: "© OpenStreetMap contributors"
+      api_key: ""
+    role_colors:                        # consistent across map, graph, tables
+      CLIENT: "#3b82f6"
+      CLIENT_MUTE: "#9ca3af"
+      ROUTER: "#22c55e"
+      ROUTER_CLIENT: "#16a34a"
+      REPEATER: "#f59e0b"
+
+database:
+  mode: mysql                           # MySQL/MariaDB only
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    # socket_path: /run/mysqld/mysqld.sock   # set to connect over the unix socket (MariaDB); linux-install.sh sets this
+    database: hopwatch
+    user: hopwatch
+    password: "${HOPWATCH_DB_PASSWORD}"
+    tls: { enabled: false, ca_file: "", reject_unauthorized: true }
+    pool: { min: 10, max: 40 }          # sized for regional (~2000 node) write rate + web reads
+  partitioning:
+    granularity: day                    # day | week
+    precreate_ahead_days: 7
+
+retention:                              # partition drops (Malla #22)
+  raw_payload_days: 14                  # encrypted payloads kept for re-decode
+  decoded_packet_days: 90               # packets + receptions (~200-450M rows at 2000 nodes)
+  telemetry_days: 365
+  live_events_minutes: 10
+  reception_rollup_hour_days: 365       # high-cardinality gateway×node×hour; daily counterpart kept forever
+  rollups_indefinite: true
+
+ingest:
+  idempotency_window_seconds: 300
+  brokers:
+    - id: primary
+      host: mqtt.example.org
+      port: 8883
+      username: ""
+      # Broker passwords are entered in /admin/settings and encrypted at rest, not in env.
+      password: ""
+      client_id: hopwatch-primary
+      tls: { enabled: true, insecure_skip_verify: false, ca_file: "", cert_file: "", key_file: "" }
+      qos: 0
+      topics:
+        # Meshtastic region roots are hierarchical (msh/US/IN/NWI/...), so a single
+        # '+' will NOT match them. Use a subtree: your region root + /#, or msh/# for all.
+        - "msh/#"                       # everything on the broker (narrow to e.g. msh/US/IN/NWI/# later)
+  decode:
+    tolerate_malformed: true
+    channel_keys:                       # multiple keys incl. default; enables re-decode (Malla #24)
+      - { name: default, key: "AQ==" }
+      # - { name: private_a, key: "base64key==" }
+
+analytics:
+  mute:
+    seed: []                            # node ids; display-only, never touches the mesh
+  spam_score:
+    window_hours: 24
+  health_score:                         # weights live here; UI shows the breakdown
+    weights: { utilization: 0.25, delivery_ratio: 0.25, gateway_coverage: 0.20, active_node_trend: 0.15, anomalies: 0.15 }
+  records:
+    enabled: true
+
+alerts:
+  enabled: true
+  delivery:
+    webhook: []
+    ntfy: []
+    # SMTP password is entered in /admin/settings and encrypted at rest, not in env.
+    smtp: { host: "", port: 587, user: "", password: "", from: "", starttls: true }
+  rules:                                # no hardcoded rule types; all config
+    - { id: node-offline,   type: node_offline,      enabled: true,  threshold_minutes: 60, channels: [] }
+    - { id: battery-low,    type: battery_threshold, enabled: true,  threshold_volts: 3.3,  channels: [] }
+    - { id: spoof,          type: spoof_flag,        enabled: true,  channels: [] }
+    - { id: new-node,       type: new_node,          enabled: true,  channels: [] }
+    - { id: gateway-silent, type: gateway_silent,    enabled: true,  threshold_minutes: 30, channels: [] }
+    - { id: chan-util-high, type: channel_util,      enabled: true,  threshold_pct: 40,     channels: [] }
+
+# RF / propagation / weather (link budget, tropo detection, NWS ingest) are configured in
+# the admin UI (/admin/settings -> RF & propagation), stored in the database, and hot-
+# reloaded. Not a YAML source of truth: defaults live in the settings schema.
+
+digest:
+  enabled: false
+  time: "08:00"
+  channels: []
+  include: [new_nodes, silent_nodes, spoof_flags]   # implemented sections; empty = all
+  attach_ics: true
+
+livemap:
+  enabled: true
+  inference_window_hours: 24            # traceroute/neighbor links this recent are drawn as inferred (dashed)
+  gateway_rings_default: true           # one packet heard by N gateways = N concentric pings
+  audio_default: false                  # tick per arrival, off until the user enables it
+  max_animations_per_sec: 50
+  trail_decay_seconds: 30
+
+# Position estimation is configured in the admin UI (/admin/settings -> Position
+# estimation), stored in the database, and hot-reloaded. It is intentionally not a YAML
+# key: defaults live in the settings schema and operators change it in the UI.
+
+features:
+  live_views: true
+  aprs_is_export: false
+  reference_sheet_pdf: false
+  ambience_mode: false

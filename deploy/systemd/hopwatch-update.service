@@ -1,0 +1,16 @@
+[Unit]
+Description=HopWatch auto-update check (pull, rebuild, restart when origin or an admin asks)
+After=network-online.target
+Wants=network-online.target
+
+# Runs as root so it can restart the hopwatch units without sudo; the check script
+# drops every git/npm/node step to HOPWATCH_RUN_USER (runuser) so repo ownership and
+# the app user's stored git credentials stay correct.
+[Service]
+Type=oneshot
+WorkingDirectory=__WORKDIR__
+EnvironmentFile=__WORKDIR__/.env
+Environment=NODE_ENV=production
+Environment=PATH=__NODEBIN__:/usr/local/bin:/usr/bin:/bin
+Environment=HOPWATCH_RUN_USER=__USER__
+ExecStart=/usr/bin/env bash scripts/linux-autoupdate.sh
