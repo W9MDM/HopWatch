@@ -10,6 +10,7 @@ export interface GeneralSettings {
   map_center: { lat: number | null; lon: number | null; zoom: number };
   social_links: { facebook: string; discord: string; website: string };
   privacy: { metrics_public: boolean; fuzz_positions: boolean; fuzz_decimals: number };
+  updates: { enabled: boolean; github_repo: string };
   retention: { raw_payload_days: number; decoded_packet_days: number; telemetry_days: number; reception_rollup_hour_days: number; live_events_minutes: number };
   features: { live_views: boolean; aprs_is_export: boolean; reference_sheet_pdf: boolean; ambience_mode: boolean };
   livemap: { enabled: boolean; inference_window_hours: number; gateway_rings_default: boolean; audio_default: boolean; max_animations_per_sec: number; trail_decay_seconds: number };
@@ -38,6 +39,7 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
   const mc = (patch: Partial<GeneralSettings["map_center"]>) => setS({ ...s, map_center: { ...s.map_center, ...patch } });
   const soc = (k: keyof GeneralSettings["social_links"], v: string) => setS({ ...s, social_links: { ...s.social_links, [k]: v } });
   const priv = <K extends keyof GeneralSettings["privacy"]>(k: K, v: GeneralSettings["privacy"][K]) => setS({ ...s, privacy: { ...s.privacy, [k]: v } });
+  const upd = <K extends keyof GeneralSettings["updates"]>(k: K, v: GeneralSettings["updates"][K]) => setS({ ...s, updates: { ...s.updates, [k]: v } });
 
   function onIcon(file?: File) {
     setError(null);
@@ -179,6 +181,15 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
           {numField("Reception rollups", s.retention.reception_rollup_hour_days, (v) => ret("reception_rollup_hour_days", v))}
           {numField("Live events (min)", s.retention.live_events_minutes, (v) => ret("live_events_minutes", v))}
         </div>
+      </div>
+
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="stat-label">Software updates</div>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.updates.enabled} onChange={(e) => upd("enabled", e.target.checked)} /> Check GitHub for new releases</label>
+          <label className="space-y-1"><span className="block stat-label">GitHub repo (owner/name)</span><input value={s.updates.github_repo} onChange={(e) => upd("github_repo", e.target.value)} placeholder="W9MDM/HopWatch" className={`${inp} w-56`} /></label>
+        </div>
+        <p className="text-[11px] text-ink-faint">When on, Service controls shows a prompt if a newer release exists. Checking never installs anything; the update itself is the &quot;Update now&quot; button.</p>
       </div>
 
       <div className="space-y-2 border-t border-line pt-3">

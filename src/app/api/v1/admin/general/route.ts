@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     display: { brand_name: cfg.server.ui.brand_name, brand_icon: cfg.server.ui.brand_icon, local_timezone: cfg.server.local_timezone, public_url: cfg.server.public_url, tile: cfg.server.ui.tile_provider, tile_dark: cfg.server.ui.tile_provider_dark, temperature_unit: cfg.server.ui.temperature_unit },
     analytics: { enabled: an.enabled, measurement_id: an.measurement_id, client: an.client, server: an.server, has_api_secret: !!an.api_secret },
+    updates: { enabled: cfg.server.updates.enabled, github_repo: cfg.server.updates.github_repo },
     map_max_age: cfg.server.ui.map_max_age,
     map_center: cfg.server.ui.map_center,
     social_links: cfg.server.ui.social_links,
@@ -84,11 +85,17 @@ export async function POST(req: NextRequest) {
   // Only set the api secret when a new one is provided; blank keeps the stored (encrypted) one.
   if (typeof b.analytics?.api_secret === "string" && b.analytics.api_secret !== "") analytics.api_secret = b.analytics.api_secret.trim().slice(0, 100);
 
+  // Update checker: only fire on a well-formed owner/name; blank keeps the default repo.
+  const updRepo = String(b.updates?.github_repo ?? "").trim().slice(0, 120);
   const patch = {
     server: {
       local_timezone: tz,
       public_url: socialUrl(b.display?.public_url).replace(/\/$/, ""), // http(s) only, no trailing slash
       metrics_public: b.privacy?.metrics_public !== false, // default public (historical behavior)
+      updates: {
+        enabled: b.updates?.enabled !== false, // default on
+        github_repo: /^[\w.-]+\/[\w.-]+$/.test(updRepo) ? updRepo : "W9MDM/HopWatch",
+      },
       privacy: {
         fuzz_positions: !!b.privacy?.fuzz_positions,
         fuzz_decimals: num(b.privacy?.fuzz_decimals, 2, 0, 5),

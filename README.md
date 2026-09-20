@@ -346,6 +346,9 @@ per-node `nodes/:id` review / rf-profile / ignore-position mutators, `service/re
 the worker/ingest to restart via a DB request that the process acts on and systemd relaunches),
 `service/update` (asks the host's hopwatch-update timer to pull the latest code, rebuild, and
 restart all services; the request is a DB row the updater claims on its next ~1 min tick),
+`service/update-check` (compares the running version to the latest GitHub release of
+`server.updates.github_repo` and reports whether a newer one exists; read-only, never installs -
+Service controls shows an "Update available" prompt from it),
 `remote-admin` (remote-admin scanner settings + persistent administrable-node record + manual
 probe/forget), `weather-alerts` (NWS alert-broadcast settings + recent-sent log + test),
 `node/reconnect` (force the RF receive stream to reconnect now),

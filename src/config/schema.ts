@@ -83,6 +83,16 @@ const server = z
     // are usually unauthenticated and restricted at the network). When false, /api/metrics
     // requires an admin session or a bearer token, so topology counts are not world-readable.
     metrics_public: z.boolean().default(true),
+    // Update checker: compares the running version to the latest GitHub release of `github_repo`
+    // and prompts an admin in /admin -> Service controls when a newer one exists. The self-update
+    // itself is the existing `service/update` flow. Set enabled false (or repoint github_repo to a
+    // fork) as needed; a check never installs anything on its own.
+    updates: z
+      .object({
+        enabled: z.boolean().default(true),
+        github_repo: z.string().default("W9MDM/HopWatch"),
+      })
+      .default({}),
     // Location privacy. Meshtastic nodes self-report GPS at full precision, which can pin a
     // hobbyist's home. When fuzz_positions is on, displayed coordinates (maps + public API,
     // including the position-estimate pair and node movement tracks) are rounded to

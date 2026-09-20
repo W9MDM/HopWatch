@@ -113,6 +113,7 @@ export default async function AdminSettingsPage() {
       map_center: eff.server.ui.map_center,
       social_links: eff.server.ui.social_links,
       privacy: { metrics_public: eff.server.metrics_public, fuzz_positions: eff.server.privacy.fuzz_positions, fuzz_decimals: eff.server.privacy.fuzz_decimals },
+      updates: { enabled: eff.server.updates.enabled, github_repo: eff.server.updates.github_repo },
       retention: eff.retention,
       features: eff.features,
       livemap: eff.livemap,
