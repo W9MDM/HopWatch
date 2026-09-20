@@ -1,5 +1,10 @@
 # HopWatch
 
+[![Release](https://img.shields.io/github/v/release/W9MDM/HopWatch?color=e05d2c)](https://github.com/W9MDM/HopWatch/releases)
+[![Downloads](https://img.shields.io/github/downloads/W9MDM/HopWatch/total?color=97ca00&label=downloads)](https://github.com/W9MDM/HopWatch/releases)
+[![Latest release](https://img.shields.io/github/downloads/W9MDM/HopWatch/latest/total?color=97ca00&label=latest%20release)](https://github.com/W9MDM/HopWatch/releases/latest)
+[![License: GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+
 A self-hosted Meshtastic MQTT network observatory. It ingests packets from one or more
 MQTT brokers, stores them durably in MySQL, and serves a web UI plus an API for analysis.
 HopWatch is passive by default: a fresh install only observes and never publishes. An opt-in
