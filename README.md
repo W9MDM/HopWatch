@@ -468,12 +468,14 @@ install with `--with-mqtt` to get both. Then add the broker in `/admin > Setting
 (host `127.0.0.1`, topic `msh/#`). On each gateway: MQTT enabled, Map reporting on, channel Uplink
 enabled, so neighbor/position data actually reaches the broker.
 
-## Expose it publicly (Cloudflare Tunnel)
+## Expose it publicly
 
-To publish the HopWatch map (and MeshView, and MeshView-world pulls) to the internet with no port
-forwarding, no static IP, and free TLS, run it behind a Cloudflare Tunnel. See
-[`docs/cloudflare-tunnel.md`](docs/cloudflare-tunnel.md) for a step-by-step guide, including the Bot
-Fight Mode gotcha that silently blocks automated pullers like MeshView-world.
+To put your dashboard (and broker) on the internet, [`docs/going-public.md`](docs/going-public.md) is
+a complete, beginner-followable walkthrough: the web UI via a **Cloudflare Tunnel** (no port
+forwarding, free TLS) or an **nginx** reverse proxy, and - for remote gateways - exposing the **MQTT
+broker** (Mosquitto TLS on 8883, an nginx stream proxy, or a VPS relay when you are behind CGNAT).
+For the web-only Cloudflare Tunnel steps on their own, see
+[`docs/cloudflare-tunnel.md`](docs/cloudflare-tunnel.md).
 
 ## Setup (manual)
 
