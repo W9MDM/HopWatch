@@ -19,7 +19,7 @@ export default async function SitePlannerPage() {
     const cfg = await effectiveConfig();
     const c = cfg.coverage;
     coverageParams = {
-      defaultEirpDbm: c.default_eirp_dbm, defaultHeightM: c.default_height_m, rxHeightM: c.rx_height_m,
+      defaultEirpDbm: c.default_eirp_dbm, defaultTxPowerDbm: c.default_tx_power_dbm, defaultHeightM: c.default_height_m, rxHeightM: c.rx_height_m,
       rxSensitivityDbm: c.rx_sensitivity_dbm, pathLossExponent: c.path_loss_exponent,
       referenceLossDb1km: c.reference_loss_db_1km, maxRadiusKm: c.max_radius_km,
     };

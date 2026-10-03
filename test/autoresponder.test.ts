@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchesPattern, formatAutoReply, fillTemplate, pickReplyTemplate, triggerAllowedOnChannel } from "../src/lib/autoresponder.ts";
+import { matchesPattern, formatAutoReply, fillTemplate, pickReplyTemplate, triggerAllowedOnChannel, looksLikeAutoAck } from "../src/lib/autoresponder.ts";
 
 test("triggerAllowedOnChannel: empty list = any channel", () => {
   assert.equal(triggerAllowedOnChannel([], "Testing"), true);
@@ -19,6 +19,18 @@ test("matchesPattern matches the trimmed body case-insensitively", () => {
   assert.equal(matchesPattern("  PING  ", "^ping$"), true);
   assert.equal(matchesPattern("ping me", "^ping$"), false);
   assert.equal(matchesPattern("status now", "status"), true);
+});
+
+test("looksLikeAutoAck flags another responder's ACK but not a real test/question", () => {
+  // The exact foreign-mesh ACK that was tripping our "test" trigger.
+  assert.equal(looksLikeAutoAck("✅ ACK Meshtastic b4a4 | Test received | 3 hops | Mesh info: https://ChiMesh.org"), true);
+  assert.equal(looksLikeAutoAck("ack ChiM: 0 hop(s) via MQTT @ 04:46 PM from Ogden Dunes, IN"), true);
+  assert.equal(looksLikeAutoAck("ACK received, 2 hops"), true);
+  // Real user messages a trigger should still answer.
+  assert.equal(looksLikeAutoAck("test"), false);
+  assert.equal(looksLikeAutoAck("Test"), false);
+  assert.equal(looksLikeAutoAck("anyone around? radio check"), false);
+  assert.equal(looksLikeAutoAck("backup generator is on"), false, "the word 'back' must not trip it");
 });
 
 test("an unanchored word pattern matches anywhere, any case, on a word boundary", () => {
@@ -74,20 +86,20 @@ test("reply channel selection: reply_channel wins, else incoming, else first key
 test("reply targets: match answers on the transport the trigger was heard on", async () => {
   const { pickReplyTargets } = await import("../src/worker/autoresponder.ts");
   // Heard on RF -> reply via the station node.
-  assert.deepEqual(pickReplyTargets("match", true, "NWIMesh", "node", "NWIMesh"), [{ transport: "node", brokerId: null }]);
+  assert.deepEqual(pickReplyTargets("match", true, "HopWatch", "node", "HopWatch"), [{ transport: "node", brokerId: null }]);
   // Heard via MQTT -> reply on the broker it arrived on (so a downlink gateway near them re-airs it).
-  assert.deepEqual(pickReplyTargets("match", false, "Chicago", "node", "NWIMesh"), [{ transport: "mqtt", brokerId: "Chicago" }]);
+  assert.deepEqual(pickReplyTargets("match", false, "Chicago", "node", "HopWatch"), [{ transport: "mqtt", brokerId: "Chicago" }]);
   // MQTT-heard with no source broker recorded -> fall back to the configured TX broker.
-  assert.deepEqual(pickReplyTargets("match", false, null, "node", "NWIMesh"), [{ transport: "mqtt", brokerId: "NWIMesh" }]);
+  assert.deepEqual(pickReplyTargets("match", false, null, "node", "HopWatch"), [{ transport: "mqtt", brokerId: "HopWatch" }]);
 });
 
 test("reply targets: both sends on RF and MQTT; fixed keeps the TX transport", async () => {
   const { pickReplyTargets } = await import("../src/worker/autoresponder.ts");
-  assert.deepEqual(pickReplyTargets("both", true, "NWIMesh", "node", "NWIMesh"),
-    [{ transport: "node", brokerId: null }, { transport: "mqtt", brokerId: "NWIMesh" }]);
+  assert.deepEqual(pickReplyTargets("both", true, "HopWatch", "node", "HopWatch"),
+    [{ transport: "node", brokerId: null }, { transport: "mqtt", brokerId: "HopWatch" }]);
   // fixed ignores how it was heard: always the configured TX transport.
-  assert.deepEqual(pickReplyTargets("fixed", false, "Chicago", "node", "NWIMesh"), [{ transport: "node", brokerId: null }]);
-  assert.deepEqual(pickReplyTargets("fixed", true, "Chicago", "mqtt", "NWIMesh"), [{ transport: "mqtt", brokerId: "NWIMesh" }]);
+  assert.deepEqual(pickReplyTargets("fixed", false, "Chicago", "node", "HopWatch"), [{ transport: "node", brokerId: null }]);
+  assert.deepEqual(pickReplyTargets("fixed", true, "Chicago", "mqtt", "HopWatch"), [{ transport: "mqtt", brokerId: "HopWatch" }]);
 });
 
 // ---------------------------------------------------------------------------

@@ -67,13 +67,13 @@ export async function getBatteryForecast(nodeId: number): Promise<{ power_profil
   return rows[0] ?? null;
 }
 
-export interface CoverageNode { node_id: number; long_name: string | null; short_name: string | null; role: string | null; is_gateway: number; latitude: number; longitude: number; direct_gateways: number; best_rssi: number | null; altitude_m: number | null; rf_height_m: number | null; rf_eirp_dbm: number | null; heard_by?: HeardEntry[] }
+export interface CoverageNode { node_id: number; long_name: string | null; short_name: string | null; role: string | null; is_gateway: number; latitude: number; longitude: number; direct_gateways: number; best_rssi: number | null; altitude_m: number | null; rf_height_m: number | null; rf_eirp_dbm: number | null; rf_antenna_dbi: number | null; first_seen_at: string | null; heard_by?: HeardEntry[] }
 
 export async function getCoverage(filter: MapFilter = {}): Promise<CoverageNode[]> {
   const m = packetMembership(filter);
   const nodes = await query<CoverageNode>(
     `SELECT n.node_id, n.long_name, n.short_name, n.role, n.is_gateway, np.latitude, np.longitude, np.altitude_m,
-            n.rf_height_m, n.rf_eirp_dbm,
+            n.rf_height_m, n.rf_eirp_dbm, n.rf_antenna_dbi, n.first_seen_at,
             -- Broker-scoped like /map's equivalents: on a broker-filtered view these counts must
             -- describe that broker's vantage, not every broker's.
             (SELECT COUNT(*) FROM gateway_node_link g JOIN gateways gwb ON gwb.gateway_id=g.gateway_id
@@ -90,6 +90,61 @@ export async function getCoverage(filter: MapFilter = {}): Promise<CoverageNode[
   const hb = await heardByMap(filter.broker);
   for (const n of nodes) n.heard_by = hb.get(n.node_id) ?? [];
   return nodes;
+}
+
+export interface CoverageSample { lat: number; lon: number; snr: number | null; rssi: number | null; hops: number | null; n: number }
+
+/**
+ * Grid-binned wardrive samples for /wardrive, in one of two modes:
+ *
+ *  - "signal" (default): DIRECT (hops=0) receptions only, per cell the strongest SNR/RSSI heard
+ *    there. This is honest RF link quality (Rule 4), and it excludes mobile gateways (a receiver
+ *    riding along with a node paints a false trail).
+ *  - "reach": DIRECT + RELAYED receptions, per cell the FEWEST hops it took to reach the mesh from
+ *    there (0 = heard direct). A relayed SNR is the last hop, so it is meaningless for the sender,
+ *    but the sender's GPS is real and the packet demonstrably reached the network, so this is a
+ *    valid reachability layer. It does NOT exclude mobile gateways: we plot the sender's position,
+ *    and a co-traveler can only be heard direct (hops=0), never relayed, so it cannot fake reach.
+ *
+ * Binning at `decimals` both aggregates the map and honours the request's location-privacy policy.
+ */
+export async function getCoverageSamples(
+  opts: { days?: number; channelId?: string; decimals?: number; limit?: number; excludeMobileGateways?: boolean; mode?: "signal" | "reach" } = {},
+): Promise<CoverageSample[]> {
+  const days = clampLimit(opts.days ?? 90, 3650, 90);
+  const dec = clampLimit(opts.decimals ?? 4, 4, 4); // 1..4 decimal grid (4 ~= 11m, 3 ~= 110m)
+  const limit = clampLimit(opts.limit ?? 8000, 20000, 8000);
+  const reach = opts.mode === "reach";
+  const params: unknown[] = [days];
+  let chan = "";
+  if (opts.channelId) { chan = " AND channel_id = ?"; params.push(opts.channelId); }
+  if (reach) {
+    // All receptions; fewest hops to reach the mesh per cell (mobile gateways kept, see above).
+    return query<CoverageSample>(
+      `SELECT ROUND(latitude, ${dec}) AS lat, ROUND(longitude, ${dec}) AS lon,
+              NULL AS snr, NULL AS rssi, MIN(hops) AS hops, COUNT(*) AS n
+         FROM coverage_sample
+        WHERE sample_time >= (UTC_TIMESTAMP() - INTERVAL ? DAY)${chan}
+        GROUP BY lat, lon
+        ORDER BY n DESC
+        LIMIT ${limit}`,
+      params,
+    );
+  }
+  // Signal mode: direct only, strongest SNR per cell, mobile gateways dropped.
+  const mobile = opts.excludeMobileGateways === false
+    ? ""
+    : " AND gateway_id NOT IN (SELECT node_id FROM node_mobility WHERE is_mobile = 1)";
+  return query<CoverageSample>(
+    `SELECT ROUND(latitude, ${dec}) AS lat, ROUND(longitude, ${dec}) AS lon,
+            MAX(rx_snr) AS snr, MAX(rx_rssi) AS rssi, 0 AS hops, COUNT(*) AS n
+       FROM coverage_sample
+      WHERE sample_time >= (UTC_TIMESTAMP() - INTERVAL ? DAY) AND hops = 0${chan}${mobile}
+      GROUP BY lat, lon
+      ORDER BY n DESC
+      LIMIT ${limit}`,
+    params,
+  );
 }
 
 export async function linkAsymmetry(limit = 50): Promise<{ a: number; b: number; a_name: string | null; b_name: string | null; rssi_ab: number | null; rssi_ba: number | null; delta: number }[]> {
@@ -229,6 +284,8 @@ export interface DashboardData {
   directPairs: number;
   receptions24h: number;
   packets24h: number;
+  newNodes7d: number;
+  newNodes24h: number;
   brokers: BrokerHealthRow[];
 }
 
@@ -254,6 +311,8 @@ export async function getDashboard(): Promise<DashboardData> {
   const [nodes] = await query<{ c: number }>(`SELECT COUNT(*) c FROM nodes`);
   const [gws] = await query<{ c: number }>(`SELECT COUNT(*) c FROM gateways WHERE active=1`);
   const [pairs] = await query<{ c: number }>(`SELECT COUNT(*) c FROM gateway_heard_direct`);
+  const [nn7] = await query<{ c: number }>(`SELECT COUNT(*) c FROM nodes WHERE first_seen_at >= (UTC_TIMESTAMP() - INTERVAL 7 DAY)`);
+  const [nn1] = await query<{ c: number }>(`SELECT COUNT(*) c FROM nodes WHERE first_seen_at >= (UTC_TIMESTAMP() - INTERVAL 24 HOUR)`);
   const brokers = await query<BrokerHealthRow>(`SELECT * FROM broker_health ORDER BY broker_id`);
 
   return {
@@ -264,6 +323,8 @@ export async function getDashboard(): Promise<DashboardData> {
     directPairs: Number(pairs?.c ?? 0),
     receptions24h: Number(agg?.receptions ?? 0),
     packets24h: Number(agg?.packets ?? 0),
+    newNodes7d: Number(nn7?.c ?? 0),
+    newNodes24h: Number(nn1?.c ?? 0),
     brokers,
   };
 }
@@ -648,7 +709,7 @@ type NodeDetail = NodeRow & {
   confidence_radius_m: number | null; method_tier: number | null;
   possibly_mobile: number | null; estimate_computed_at: string | null;
   mute_hidden: number; position_ignored: number; // admin ignore controls (from nodes.*)
-  rf_height_m: number | null; rf_eirp_dbm: number | null; // per-node RF profile overrides
+  rf_height_m: number | null; rf_eirp_dbm: number | null; rf_antenna_dbi: number | null; // per-node RF profile overrides
 };
 
 // Name + role only, no coordinates: for headers on node sub-pages that must not touch position (so
@@ -794,7 +855,7 @@ export interface MapNode {
   node_id: number; long_name: string | null; short_name: string | null; role: string | null;
   hw_model: string | null; firmware_version: string | null; is_gateway: number; is_relay: number;
   latitude: number; longitude: number; altitude_m: number | null;
-  last_seen_at: string | null; hops: number | null; direct_gateways: number; best_rssi: number | null;
+  last_seen_at: string | null; first_seen_at: string | null; hops: number | null; direct_gateways: number; best_rssi: number | null;
   total_packet_count: number; total_reception_count: number;
   battery: number | null; voltage: number | null; chan_util: number | null;
   // Provenance: 'gps' = real transmitted position, 'estimated' = inferred (see getEstimatedMapNodes).
@@ -930,7 +991,7 @@ export async function getMapData(filter: MapFilter = {}): Promise<{ nodes: MapNo
   const bp: unknown[] = filter.broker ? [filter.broker] : [];
   const nodes = await query<MapNode>(
     `SELECT n.node_id, n.long_name, n.short_name, n.role, n.hw_model, n.firmware_version,
-            n.is_gateway, n.is_relay, p.latitude, p.longitude, p.altitude_m, n.last_seen_at,
+            n.is_gateway, n.is_relay, p.latitude, p.longitude, p.altitude_m, n.last_seen_at, n.first_seen_at,
             n.total_packet_count, n.total_reception_count,
             h.hops,
             (SELECT COUNT(*) FROM gateway_node_link g JOIN gateways gw ON gw.gateway_id=g.gateway_id WHERE g.node_id=n.node_id AND g.direct_count>0${gwBroker}) AS direct_gateways,
@@ -1038,7 +1099,7 @@ export async function getEstimatedMapNodes(filter: MapFilter = {}): Promise<MapN
   const m = packetMembership(filter);
   const nodes = await query<MapNode>(
     `SELECT n.node_id, n.long_name, n.short_name, n.role, n.hw_model, n.firmware_version,
-            n.is_gateway, n.is_relay, e.latitude, e.longitude, NULL AS altitude_m, n.last_seen_at,
+            n.is_gateway, n.is_relay, e.latitude, e.longitude, NULL AS altitude_m, n.last_seen_at, n.first_seen_at,
             NULL AS hops,
             (SELECT COUNT(*) FROM gateway_node_link g WHERE g.node_id=n.node_id AND g.direct_count>0) AS direct_gateways,
             (SELECT MAX(g.last_rssi) FROM gateway_node_link g WHERE g.node_id=n.node_id AND g.direct_count>0) AS best_rssi,
@@ -1226,6 +1287,56 @@ export async function trafficByHourCategory(hours = 24): Promise<{ bucket: strin
      GROUP BY bucket, port_num ORDER BY bucket ASC`,
     [hours],
   );
+}
+
+export interface SpectrumRow { bucket: string; port_num: number; direct: number; relayed: number }
+export interface SpectrumStats { direct: number; relayed: number; receptions: number; unique: number; dupe_pct: number; mean_snr: number | null; errors: number }
+
+/**
+ * Traffic spectrum for /spectrum: RF receptions per hour bucket, split by application port and by
+ * direction (direct = zero-hop clean, relayed = heard via the mesh). Feeds the diverging stacked
+ * chart (direct up, relayed down, colored by port). Receptions-based (Rule 4); MQTT self/injected
+ * copies are excluded since they never crossed the air. Window is bounded (<= 7d) to keep the
+ * receptions x packets join cheap.
+ */
+export async function getTrafficSpectrum(hours = 24, binMinutes = 15): Promise<{ rows: SpectrumRow[]; stats: SpectrumStats }> {
+  const h = clampLimit(hours, 168, 24);
+  const bin = [10, 15, 30, 60].includes(binMinutes) ? binMinutes : 15; // minute buckets that divide the hour
+  const rows = await query<SpectrumRow>(
+    `SELECT CONCAT(DATE_FORMAT(r.rx_time, '%Y-%m-%d %H:'), LPAD(FLOOR(MINUTE(r.rx_time) / ?) * ?, 2, '0'), ':00') AS bucket,
+            COALESCE(p.port_num, 0) AS port_num,
+            SUM(r.reception_class IN ('rf_direct','rf_direct_low_conf')) AS direct,
+            SUM(r.reception_class = 'rf_relayed') AS relayed
+       FROM receptions r JOIN packets p ON p.id = r.packet_id
+      WHERE r.rx_time >= (UTC_TIMESTAMP() - INTERVAL ? HOUR)
+        AND r.reception_class IN ('rf_direct','rf_direct_low_conf','rf_relayed')
+      GROUP BY bucket, port_num
+      ORDER BY bucket ASC`,
+    [bin, bin, h],
+  );
+  const [s] = await query<{ direct: number; relayed: number; receptions: number; uniq: number; mean_snr: number | null }>(
+    `SELECT SUM(reception_class IN ('rf_direct','rf_direct_low_conf')) AS direct,
+            SUM(reception_class = 'rf_relayed') AS relayed,
+            COUNT(*) AS receptions, COUNT(DISTINCT packet_id) AS uniq,
+            AVG(CASE WHEN reception_class IN ('rf_direct','rf_direct_low_conf') THEN rx_snr END) AS mean_snr
+       FROM receptions
+      WHERE rx_time >= (UTC_TIMESTAMP() - INTERVAL ? HOUR)
+        AND reception_class IN ('rf_direct','rf_direct_low_conf','rf_relayed')`,
+    [h],
+  );
+  const [e] = await query<{ c: number }>(
+    `SELECT COUNT(*) c FROM packets WHERE first_seen_at >= (UTC_TIMESTAMP() - INTERVAL ? HOUR) AND decode_status IN ('malformed','partial')`,
+    [h],
+  );
+  const receptions = Number(s?.receptions ?? 0), uniq = Number(s?.uniq ?? 0);
+  return {
+    rows,
+    stats: {
+      direct: Number(s?.direct ?? 0), relayed: Number(s?.relayed ?? 0), receptions, unique: uniq,
+      dupe_pct: receptions ? ((receptions - uniq) / receptions) * 100 : 0,
+      mean_snr: s?.mean_snr != null ? Number(s.mean_snr) : null, errors: Number(e?.c ?? 0),
+    },
+  };
 }
 
 /** How often a node broadcasts NodeInfo (port 4) over a window. */

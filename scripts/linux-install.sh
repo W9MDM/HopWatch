@@ -15,13 +15,14 @@
 #   bash scripts/linux-install.sh --no-systemd         # skip services
 #   bash scripts/linux-install.sh --no-db              # skip DB provisioning
 #   bash scripts/linux-install.sh --user=hopwatch      # run services as this user
-#   flags: --no-db --no-systemd --no-build --user=NAME
+#   sudo bash scripts/linux-install.sh --with-mqtt     # also install a local Mosquitto broker
+#   flags: --no-db --no-systemd --no-build --user=NAME --with-mqtt
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
-DO_DB=1; DO_SYSTEMD=1; BUILD=1
+DO_DB=1; DO_SYSTEMD=1; BUILD=1; WITH_MQTT=0
 SVC_USER="${SUDO_USER:-$(id -un)}"
 for a in "$@"; do
   case "$a" in
@@ -29,6 +30,7 @@ for a in "$@"; do
     --no-systemd) DO_SYSTEMD=0 ;;
     --no-build) BUILD=0 ;;
     --user=*) SVC_USER="${a#*=}" ;;
+    --with-mqtt) WITH_MQTT=1 ;;
     *) echo "unknown flag: $a" >&2; exit 1 ;;
   esac
 done
@@ -188,6 +190,13 @@ if [ "$DO_SYSTEMD" -eq 1 ]; then
   $SUDO systemctl enable --now hopwatch-ingest hopwatch-worker hopwatch-web
   $SUDO systemctl enable --now hopwatch-update.timer
   echo "  services enabled and started (auto-update timer on)"
+fi
+
+# --- optional local MQTT broker ---
+if [ "$WITH_MQTT" -eq 1 ]; then
+  step "Installing a local Mosquitto broker (--with-mqtt)"
+  $SUDO bash "$ROOT/scripts/install-mqtt.sh"
+  echo "  add this broker in /admin > Settings > MQTT brokers (host 127.0.0.1, topic msh/#)"
 fi
 
 # --- done ---

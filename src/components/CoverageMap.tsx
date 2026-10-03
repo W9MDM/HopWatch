@@ -8,14 +8,15 @@ import { formatNodeId } from "../meshtastic/types.ts";
 import { DARK_TILES, DARK_ATTRIB, estColor, buildNodeElement, NODE_TYPES, matchesNodeType } from "../lib/mapicons.ts";
 import { circlePolygon } from "../lib/geo.ts";
 import { coverageRadiusKm, type CoverageParams } from "../lib/coverage.ts";
-import { MapLayersPanel } from "./MapLayersPanel.tsx";
+import { MapLayersPanel, NEW_STEPS, isNewWithin } from "./MapLayersPanel.tsx";
 import { cn } from "../lib/cn.ts";
 
 export interface CoverageHeard { gateway_id: number; name: string | null; broker: string | null; status: string; rssi: number | null }
 export interface CoverageNode {
   node_id: number; long_name: string | null; short_name: string | null; role: string | null; is_gateway: number;
   latitude: number; longitude: number; direct_gateways: number; best_rssi: number | null;
-  altitude_m: number | null; rf_height_m: number | null; rf_eirp_dbm: number | null;
+  altitude_m: number | null; rf_height_m: number | null; rf_eirp_dbm: number | null; rf_antenna_dbi: number | null;
+  first_seen_at: string | null;
   heard_by?: CoverageHeard[];
 }
 export interface CoverageEstimate {
@@ -54,6 +55,8 @@ export function CoverageMap({ nodes, tile, brokers, channels, filter, estimates,
   // i.e. nodes present only via their own MQTT uplink. heard_by is the RF link roster.
   const [rfOnly, setRfOnly] = useState(false);
   const [nodeType, setNodeType] = useState("all");
+  const [newIdx, setNewIdx] = useState(0); // "New nodes" filter (first-seen window); 0 = Off
+  const setNew = (i: number) => { setNewIdx(i); try { localStorage.setItem("hopwatch_map_newnodes", String(i)); } catch { /* ignore */ } };
   const persist = (key: string, v: boolean) => { try { localStorage.setItem(key, v ? "1" : "0"); } catch { /* ignore */ } };
 
   useEffect(() => {
@@ -65,12 +68,15 @@ export function CoverageMap({ nodes, tile, brokers, channels, filter, estimates,
     if (localStorage.getItem("hopwatch_map_rfonly") === "1") setRfOnly(true);
     const nt = localStorage.getItem("hopwatch_map_type");
     if (nt) setNodeType(nt);
+    const ni = Number(localStorage.getItem("hopwatch_map_newnodes"));
+    if (Number.isInteger(ni) && ni > 0 && ni < NEW_STEPS.length) setNewIdx(ni);
   }, []);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const typedNodes = nodes.filter((n) => matchesNodeType(n.role, !!n.is_gateway, nodeType) && (!rfOnly || (n.heard_by?.length ?? 0) > 0));
+    const newHours = NEW_STEPS[newIdx]!.hours;
+    const typedNodes = nodes.filter((n) => matchesNodeType(n.role, !!n.is_gateway, nodeType) && isNewWithin(n.first_seen_at, newHours) && (!rfOnly || (n.heard_by?.length ?? 0) > 0));
     const typedEst = estimates.filter((e) => matchesNodeType(e.role, false, nodeType));
     const start = typedNodes[0] ?? typedEst[0] ?? nodes[0] ?? estimates[0];
     const base = dark ? { url: tile.darkUrl ?? DARK_TILES, attribution: tile.darkAttribution ?? DARK_ATTRIB } : { url: tile.url, attribution: tile.attribution };
@@ -136,7 +142,7 @@ export function CoverageMap({ nodes, tile, brokers, channels, filter, estimates,
     // Predicted coverage: a range ring per node from its RF profile (height/EIRP) + link
     // budget. Drawn under everything so the dots stay readable.
     const covRings = (showCoverage ? typedNodes : []).map((n) => {
-      const km = coverageRadiusKm({ eirpDbm: n.rf_eirp_dbm, heightM: n.rf_height_m, altitudeM: n.altitude_m }, coverageParams);
+      const km = coverageRadiusKm({ eirpDbm: n.rf_eirp_dbm, antennaDbi: n.rf_antenna_dbi, heightM: n.rf_height_m, altitudeM: n.altitude_m }, coverageParams);
       return { type: "Feature" as const, geometry: { type: "Polygon" as const, coordinates: [circlePolygon({ lat: n.latitude, lon: n.longitude }, km * 1000)] }, properties: {} };
     });
 
@@ -215,7 +221,7 @@ export function CoverageMap({ nodes, tile, brokers, channels, filter, estimates,
     });
 
     return () => { for (const m of markers) m.remove(); map.remove(); };
-  }, [nodes, tile, dark, showEst, showAccuracy, showCoverage, rfOnly, nodeType, estimates, router, canClaim]);
+  }, [nodes, tile, dark, showEst, showAccuracy, showCoverage, rfOnly, nodeType, newIdx, estimates, router, canClaim]);
 
   const ctl = (active: boolean) => cn("rounded-md border px-3 py-1 text-[12px] font-medium shadow",
     dark ? "border-line-strong bg-surface text-ink" : "border-neutral-300 bg-white text-neutral-900", !active && "opacity-70");
@@ -256,7 +262,7 @@ export function CoverageMap({ nodes, tile, brokers, channels, filter, estimates,
           {channels.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
-      <MapLayersPanel toggles={layerToggles} />
+      <MapLayersPanel toggles={layerToggles} newFilter={{ steps: NEW_STEPS, index: newIdx, onChange: setNew }} />
       <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 py-2 text-[11px]">
         <div className="flex items-center gap-2">
           <span className="stat-label">Color = direct gateways</span>

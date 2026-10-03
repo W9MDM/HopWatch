@@ -4,7 +4,7 @@ import { coverageRadiusKm, effectiveHeightM, effectiveEirpDbm, predictedRssiDbm,
 import { haversineKm } from "../src/lib/geo.ts";
 
 const P: CoverageParams = {
-  defaultEirpDbm: 30, defaultHeightM: 8, rxHeightM: 2, rxSensitivityDbm: -128,
+  defaultEirpDbm: 30, defaultTxPowerDbm: 22, defaultHeightM: 8, rxHeightM: 2, rxSensitivityDbm: -128,
   pathLossExponent: 2.7, referenceLossDb1km: 100, maxRadiusKm: 60,
 };
 
@@ -29,9 +29,16 @@ test("a node's elevation no longer inflates its coverage ring", () => {
   assert.ok(coverageRadiusKm({ heightM: 60 }, P) > seaLevel);
 });
 
-test("effective EIRP: override wins, else default", () => {
-  assert.equal(effectiveEirpDbm({ eirpDbm: 22 }, P), 22);
-  assert.equal(effectiveEirpDbm({}, P), 30);
+test("effective EIRP: override wins, else antenna gain, else default", () => {
+  assert.equal(effectiveEirpDbm({ eirpDbm: 22 }, P), 22, "explicit EIRP override wins");
+  assert.equal(effectiveEirpDbm({}, P), 30, "no info -> default EIRP");
+  // Antenna gain derives EIRP from the assumed conducted TX power (22) + gain.
+  assert.equal(effectiveEirpDbm({ antennaDbi: 3 }, P), 25);
+  assert.equal(effectiveEirpDbm({ antennaDbi: 0 }, P), 22);
+  // Capped at the regulatory EIRP limit (defaultEirpDbm): 22 + 12 = 34 -> 30.
+  assert.equal(effectiveEirpDbm({ antennaDbi: 12 }, P), 30, "capped at the regional EIRP limit");
+  // An explicit EIRP override still beats a set antenna gain.
+  assert.equal(effectiveEirpDbm({ eirpDbm: 20, antennaDbi: 8 }, P), 20);
 });
 
 test("a taller tower reaches farther (horizon-limited)", () => {

@@ -1,5 +1,6 @@
 import { moduleDenied } from "../components/ModuleGate.tsx";
-import { getDashboard, getHealthSnapshot, meshTrends, pkiAdoption, getTextStats, type MeshTrendPoint, type TextStats } from "../db/queries.ts";
+import { getDashboard, getHealthSnapshot, meshTrends, pkiAdoption, getTextStats, getTrafficSpectrum, type MeshTrendPoint, type TextStats } from "../db/queries.ts";
+import { SpectrumChart } from "../components/SpectrumChart.tsx";
 import Link from "next/link";
 import { fmtNum, fmtAge } from "../lib/format.ts";
 import { formatNodeId } from "../meshtastic/types.ts";
@@ -26,13 +27,17 @@ import { LiveMessages } from "../components/LiveMessages.tsx";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="card">
+function StatTile({ label, value, sub, href }: { label: string; value: string; sub?: string; href?: string }) {
+  const inner = (
+    <>
       <div className="stat-label">{label}</div>
       <div className="stat mt-1">{value}</div>
       {sub && <div className="mt-1 text-[11px] text-ink-faint">{sub}</div>}
-    </div>
+    </>
+  );
+  if (href) return <Link href={href} className="card block transition-colors hover:border-accent">{inner}</Link>;
+  return (
+    <div className="card">{inner}</div>
   );
 }
 
@@ -67,8 +72,9 @@ export default async function DashboardPage() {
   try { zone = (await effectiveConfig()).server.local_timezone; } catch { /* default UTC */ }
   let data, health, trends: MeshTrendPoint[] = [], pki = { total: 0, with_key: 0 };
   let texts: TextStats = { total: 0, topSenders: [], byBroker: [] };
+  let spectrum: Awaited<ReturnType<typeof getTrafficSpectrum>> | null = null;
   try {
-    [data, health, trends, pki, texts] = await Promise.all([getDashboard(), getHealthSnapshot(), meshTrends(48), pkiAdoption(), getTextStats(localDayStartUtc(zone), 10)]);
+    [data, health, trends, pki, texts, spectrum] = await Promise.all([getDashboard(), getHealthSnapshot(), meshTrends(48), pkiAdoption(), getTextStats(localDayStartUtc(zone), 10), getTrafficSpectrum(24, 15)]);
   } catch (e) {
     return <DbError error={e} />;
   }
@@ -115,9 +121,10 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
         <StatTile label="Active nodes (24h)" value={fmtNum(data.activeNodes24h)} />
         <StatTile label="Known nodes" value={fmtNum(data.totalNodes)} />
+        <StatTile label="New nodes (7d)" value={fmtNum(data.newNodes7d)} sub={`${fmtNum(data.newNodes24h)} in last 24h`} href="/new-nodes" />
         <StatTile label="Gateways" value={fmtNum(data.gateways)} />
         <StatTile label="Direct pairs" value={fmtNum(data.directPairs)} />
         <StatTile label="Receptions (24h)" value={fmtNum(data.receptions24h)} />
@@ -137,6 +144,12 @@ export default async function DashboardPage() {
             <div className="stat mt-1">{fmtNum(pki.with_key)}<span className="ml-1 text-[13px] text-ink-faint">/ {fmtNum(pki.total)}</span></div>
             <div className="mt-1 text-[11px] text-ink-faint">nodes advertising a public key</div>
           </div>
+        </div>
+      )}
+
+      {spectrum && spectrum.rows.length > 0 && (
+        <div className="card">
+          <SpectrumChart compact rows={spectrum.rows} stats={spectrum.stats} hours={24} bin={15} />
         </div>
       )}
 

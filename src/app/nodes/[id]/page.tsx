@@ -232,7 +232,7 @@ export default async function NodeDetail({ params }: { params: Promise<{ id: str
 
       <ClaimNodeButton numId={nodeId} name={nodeName} lat={node.latitude ?? null} lng={node.longitude ?? null} role={node.role ?? null} />
       <NodeWatchControls nodeId={nodeId} />
-      {isAdmin && <NodeAdminControls nodeId={nodeId} muted={!!node.mute_hidden} positionIgnored={!!node.position_ignored} rfHeightM={node.rf_height_m} rfEirpDbm={node.rf_eirp_dbm} />}
+      {isAdmin && <NodeAdminControls nodeId={nodeId} muted={!!node.mute_hidden} positionIgnored={!!node.position_ignored} rfHeightM={node.rf_height_m} rfEirpDbm={node.rf_eirp_dbm} rfAntennaDbi={node.rf_antenna_dbi} />}
       {txEnabled && keyedChannels.length > 0 && <NodeTxActions nodeId={nodeId} channels={keyedChannels} dryRun={txDryRun} />}
 
       <div className="card">

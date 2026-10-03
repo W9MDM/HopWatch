@@ -4,7 +4,8 @@
 // the node's GPS altitude and config defaults.
 
 export interface CoverageParams {
-  defaultEirpDbm: number; // assumed EIRP when a node has no override
+  defaultEirpDbm: number; // assumed EIRP when a node has no override (also the regulatory EIRP cap)
+  defaultTxPowerDbm: number; // assumed conducted TX power, used with a node's antenna gain to derive EIRP
   defaultHeightM: number; // fallback antenna height when there is no override or altitude
   rxHeightM: number; // assumed receiver antenna height (handheld ~2 m)
   rxSensitivityDbm: number; // LoRa receiver sensitivity floor (e.g. -128)
@@ -14,7 +15,8 @@ export interface CoverageParams {
 }
 
 export interface NodeRf {
-  eirpDbm?: number | null; // per-node override
+  eirpDbm?: number | null; // per-node EIRP override (wins over antenna-derived)
+  antennaDbi?: number | null; // per-node antenna gain (dBi); EIRP = defaultTxPower + gain, capped at defaultEirp
   heightM?: number | null; // per-node antenna-height override (metres AGL)
   altitudeM?: number | null; // GPS altitude (metres above MSL). NOT a height, see below.
 }
@@ -36,8 +38,16 @@ export function effectiveHeightM(n: NodeRf, p: CoverageParams): number {
   return Math.max(1, n.heightM ?? p.defaultHeightM);
 }
 
+/**
+ * Effective EIRP (dBm): an explicit per-node EIRP override wins; else, if the node's antenna gain is
+ * known, EIRP is the assumed conducted TX power plus that gain, capped at the regulatory EIRP limit
+ * (defaultEirpDbm); else the plain default EIRP. Antenna gain lets an operator refine a node's ring
+ * from its real hardware without knowing the full EIRP.
+ */
 export function effectiveEirpDbm(n: NodeRf, p: CoverageParams): number {
-  return n.eirpDbm ?? p.defaultEirpDbm;
+  if (n.eirpDbm != null) return n.eirpDbm;
+  if (n.antennaDbi != null) return Math.min(p.defaultEirpDbm, p.defaultTxPowerDbm + n.antennaDbi);
+  return p.defaultEirpDbm;
 }
 
 /**

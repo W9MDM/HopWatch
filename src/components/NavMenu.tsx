@@ -14,7 +14,7 @@ const GROUPS: Group[] = [
   { label: "Dashboard", href: "/" },
   { label: "Maps", items: [
     { href: "/livemap", label: "Live map" }, { href: "/map", label: "Map" }, { href: "/graph", label: "Graph" },
-    { href: "/coverage", label: "Coverage" }, { href: "/history", label: "History" }, { href: "/replay", label: "Replay" },
+    { href: "/coverage", label: "Coverage" }, { href: "/wardrive", label: "Wardrive" }, { href: "/history", label: "History" }, { href: "/replay", label: "Replay" },
   ] },
   { label: "Nodes", items: [
     { href: "/nodes", label: "Nodes" }, { href: "/owned-nodes", label: "Owned nodes" }, { href: "/my-reach", label: "My reach" }, { href: "/watchlist", label: "Watchlist" }, { href: "/power", label: "Power & battery" }, { href: "/fleet", label: "Fleet" },
@@ -25,7 +25,7 @@ const GROUPS: Group[] = [
     { href: "/gateways", label: "Gateways" }, { href: "/brokers", label: "MQTT brokers" }, { href: "/matrix", label: "Matrix" },
   ] },
   { label: "Analytics", items: [
-    { href: "/analytics", label: "Analytics" },
+    { href: "/analytics", label: "Analytics" }, { href: "/spectrum", label: "Spectrum" },
     { href: "/records", label: "Records" }, { href: "/scoreboard", label: "Scoreboard" },
     { href: "/weather", label: "Weather" }, { href: "/environment", label: "Mesh weather" },
     { href: "/spammers", label: "Spammers" }, { href: "/flags", label: "Flags & anomalies" },

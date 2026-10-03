@@ -36,7 +36,7 @@ access** (`/admin/roles`).
 Every page/feature area is a module (`src/auth/modules.ts`), and guards map a request path to a
 module by longest-prefix match. Current keys:
 
-`dashboard`, `livemap`, `map`, `coverage`, `history`, `graph`, `nodes`, `owned`, `watchlist`,
+`dashboard`, `livemap`, `map`, `coverage` (also `/wardrive`), `history`, `graph`, `nodes`, `owned`, `watchlist`,
 `power` (also `/battery`, `/routers`), `packets`, `gateways`, `messages`, `matrix`,
 `analytics` (also `/stats`, `/distributions`), `propagation`, `link-budget` (also `/los`),
 `records`, `fleet`, `traceroutes`, `backbone`, `new-nodes`, `ghosts`, `spammers`, `weather`,

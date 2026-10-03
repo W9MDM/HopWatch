@@ -221,6 +221,30 @@ export async function applyEnvelope(conn: PoolConnection, env: NormalizedEnvelop
       [packetId, toMysqlUtc(firstSeenAt)],
     );
 
+    // 3b. Wardrive / RF coverage sample: record WHERE this transmitter was (its self-reported GPS)
+    //     when a gateway heard it. hops=0 for a zero-hop DIRECT reception (feeds the SNR map: only a
+    //     direct hit tells you the source-to-gateway RF quality, Rule 4); hops>0 for a RELAYED
+    //     reception (feeds the "reach" map only: its SNR is the last hop, useless for the sender, but
+    //     the sender GPS is real and the packet demonstrably reached the mesh in that many hops).
+    //     Self/injected copies never touched the air, so they are skipped. Per-reception on purpose:
+    //     each gateway that hears the same position contributes its own point.
+    const covPos = p.decoded?.parsed;
+    if (
+      (cls.class === "rf_direct" || cls.class === "rf_relayed") && covPos?.kind === "position" &&
+      Number.isFinite(covPos.latitude) && Number.isFinite(covPos.longitude) &&
+      !(covPos.latitude === 0 && covPos.longitude === 0)
+    ) {
+      const hops = cls.class === "rf_direct"
+        ? 0
+        : (p.hopStart != null && p.hopLimit != null && p.hopStart >= p.hopLimit ? p.hopStart - p.hopLimit : null);
+      await conn.execute(
+        `INSERT INTO coverage_sample
+           (sample_time, latitude, longitude, gateway_id, from_node_id, rx_snr, rx_rssi, channel_id, hops, source)
+         VALUES (?,?,?,?,?,?,?,?,?, 'live')`,
+        [toMysqlUtc(rxRowTime), covPos.latitude, covPos.longitude, env.gatewayId, p.from, p.rxSnr, p.rxRssi, env.channelId || null, hops],
+      );
+    }
+
     // 4. Nodes + gateway identity/last-seen.
     await upsertNode(conn, p.from, rxTime, newPacket);
     if (env.gatewayId && env.gatewayId !== p.from) {

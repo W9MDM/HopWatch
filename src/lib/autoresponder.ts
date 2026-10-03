@@ -14,6 +14,19 @@ export function matchesPattern(body: string, pattern: string): boolean {
   return re.test(body.trim());
 }
 
+/**
+ * True if a message looks like an automated acknowledgement from another responder/bot: a check
+ * emoji or an "ack" lead-in, or an "ack ... N hop(s)" receipt shape. The auto-responder skips these
+ * so it never ping-pongs with another mesh's responder, for example replying to a foreign
+ * "✅ ACK Meshtastic b4a4 | Test received | 3 hops | ..." just because it contains the word "test".
+ */
+export function looksLikeAutoAck(body: string): boolean {
+  const b = body.trim();
+  if (/^[✅✔☑✓❗❕]?\s*ack\b/i.test(b)) return true; // (optional check/! emoji +) leading "ack"
+  if (/\back\b[\s\S]*\bhops?\b/i.test(b)) return true; // "...ack... N hop(s)..." receipt
+  return false;
+}
+
 /** Whether a trigger is allowed to fire on the channel a message arrived on. An empty `channels`
  *  list means "any channel" (the historical behaviour); otherwise the incoming channel must be in
  *  the list (case-insensitive). Lets a trigger be scoped to e.g. the Testing channel so it can reply

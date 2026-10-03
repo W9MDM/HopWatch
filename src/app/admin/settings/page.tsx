@@ -118,6 +118,7 @@ export default async function AdminSettingsPage() {
       retention: eff.retention,
       features: eff.features,
       livemap: eff.livemap,
+      wardrive: eff.wardrive,
     } as unknown as GeneralSettings;
     const dc = eff.server.auth.discord;
     authInitial = {

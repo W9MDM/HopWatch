@@ -9,7 +9,7 @@ export interface RfSettings {
   space_weather: { enabled: boolean; refresh_interval_minutes: number; kp_url: string; flux_url: string; solar_wind_url: string };
 }
 export interface CoverageModel {
-  default_eirp_dbm: number; default_height_m: number; rx_height_m: number;
+  default_eirp_dbm: number; default_tx_power_dbm: number; default_height_m: number; rx_height_m: number;
   rx_sensitivity_dbm: number; path_loss_exponent: number; reference_loss_db_1km: number; max_radius_km: number;
 }
 
@@ -81,6 +81,7 @@ export function RfManager({ initial, coverage }: { initial: RfSettings; coverage
         <div className="stat-label">Predicted coverage model (per-node height/EIRP overrides live on each node page)</div>
         <div className="flex flex-wrap gap-3">
           <label className="space-y-1"><span className="block stat-label">Default EIRP (dBm)</span><input type="number" value={String(cov.default_eirp_dbm)} onChange={(e) => cm("default_eirp_dbm", Number(e.target.value))} className={inputCls} /></label>
+          <label className="space-y-1"><span className="block stat-label">Default TX power (dBm)</span><input type="number" value={String(cov.default_tx_power_dbm)} onChange={(e) => cm("default_tx_power_dbm", Number(e.target.value))} className={inputCls} /></label>
           <label className="space-y-1"><span className="block stat-label">Default height (m)</span><input type="number" value={String(cov.default_height_m)} onChange={(e) => cm("default_height_m", Number(e.target.value))} className={inputCls} /></label>
           <label className="space-y-1"><span className="block stat-label">RX height (m)</span><input type="number" value={String(cov.rx_height_m)} onChange={(e) => cm("rx_height_m", Number(e.target.value))} className={inputCls} /></label>
           <label className="space-y-1"><span className="block stat-label">RX sensitivity (dBm)</span><input type="number" value={String(cov.rx_sensitivity_dbm)} onChange={(e) => cm("rx_sensitivity_dbm", Number(e.target.value))} className={inputCls} /></label>

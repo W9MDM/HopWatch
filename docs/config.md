@@ -143,6 +143,7 @@ unlike the webhook channel which overrides the name per message.
 | `retention.rollups_indefinite` | `true` | Keep node/day rollups forever; set false to prune them at `rollup_days`. When false, the daily rollup also stops re-aggregating days older than `rollup_days`, which previously re-inserted exactly the rows retention had just deleted. |
 | `retention.event_history_days` | `365` | Age-prune the unbounded event tables (text_message, node/position/identity/link events, records_history); 0 = keep forever. |
 | `retention.rollup_days` | `730` | Age cutoff for node_rollup_hour / reception_rollup_day when `rollups_indefinite` is false. |
+| `retention.coverage_sample_days` | `1095` | Age cutoff for `coverage_sample` (the /wardrive RF heat map). Kept long so the map accumulates; 0 = keep forever. |
 
 ## ingest
 
@@ -342,7 +343,8 @@ role would remain, and forbids an anonymous/token-default role that is an admin 
 ## automations
 
 `automations[]` (edited in `/admin/tx`): scheduled templated messages. Each `{id, enabled, kind
-(daily|interval), at (HH:MM local), every_minutes, transport (mqtt|rf), channel, template}`. The
+(daily|interval), at (HH:MM local), every_minutes, transport (mqtt|rf|both), channel, template}`.
+`both` fires the same message over each transport (one RF and one MQTT outbox entry). The
 worker fires due ones through the armed `tx_outbox` (so they need the TX subsystem enabled +
 armed, and obey every TX rail + audit). Template vars: `{count}` (active nodes 24h), `{total}`
 (known nodes), `{gateways}`, `{packets}` (24h), `{msgs}` (texts 24h), `{time}`, `{date}`,
@@ -398,13 +400,26 @@ Meshtastic does not broadcast power/height, so per-node overrides plus these def
 
 | Key | Default | Description |
 |---|---|---|
-| `coverage.default_eirp_dbm` | `30` | Assumed EIRP (regional cap, US ~30). |
+| `coverage.default_eirp_dbm` | `30` | Assumed EIRP when a node has no override; also the regulatory EIRP cap. |
+| `coverage.default_tx_power_dbm` | `22` | Assumed conducted TX power. When a node has a per-node antenna gain (dBi) set but no explicit EIRP, its EIRP = this + the gain, capped at `default_eirp_dbm`. |
 | `coverage.default_height_m` | `8` | Assumed transmitter antenna height. |
 | `coverage.rx_height_m` | `2` | Assumed receiver antenna height. |
 | `coverage.rx_sensitivity_dbm` | `-128` | Assumed receiver sensitivity. |
 | `coverage.path_loss_exponent` | `2.7` | Log-distance path-loss exponent. |
 | `coverage.reference_loss_db_1km` | `100` | Reference loss at 1 km. |
 | `coverage.max_radius_km` | `60` | Max ring radius drawn. |
+
+## wardrive (RF coverage heat map)
+
+Settings for `/wardrive`, the over-the-air coverage heat map built from zero-hop (`rf_direct`)
+receptions of GPS position packets. Managed in `/admin/settings -> General -> Wardrive heat map`.
+Related: `retention.coverage_sample_days` controls how long samples are kept.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `wardrive.exclude_mobile_gateways` | `true` | Drop samples heard by a gateway that is itself moving. A receiver traveling with a node hears it strongly the whole way and paints a false coverage trail; excluding mobile gateways keeps the map to fixed-site reception. The raw `coverage_sample` rows are kept, only the map view filters. |
+| `wardrive.mobile_span_deg` | `0.2` | A node is flagged mobile when its own GPS track spans more than this many degrees (~0.2 = ~22 km) in latitude or longitude. Computed by the worker into `node_mobility`. |
+| `wardrive.mobile_min_fixes` | `4` | Minimum valid position fixes before a node can be judged mobile, so a single stray fix cannot flag a stationary gateway. |
 
 ## aprs_is
 

@@ -92,6 +92,16 @@ export async function runRetention(): Promise<void> {
     }
   }
 
+  // 4b. Wardrive coverage samples (coverage_sample): chunked DELETE by age, same cadence. Kept long
+  //     (default ~3y) so the heat map accumulates; 0 disables (keep forever).
+  const covDays = cfg.retention.coverage_sample_days;
+  if (covDays > 0) {
+    await duty("coverage_sample", () => getPool().execute(
+      `DELETE FROM coverage_sample WHERE sample_time < (UTC_TIMESTAMP() - INTERVAL ? DAY) LIMIT 50000`,
+      [covDays],
+    ));
+  }
+
   // 5. Non-partitioned rollup tables: pruned only when rollups are not kept indefinitely.
   if (!cfg.retention.rollups_indefinite) {
     // records_history is included because nothing else ever swept it and nothing reads it beyond

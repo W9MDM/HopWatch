@@ -37,6 +37,52 @@ export interface ChannelKey {
   key: string;
 }
 
+export interface DecodedPosition { latitude: number; longitude: number; altitudeM: number | null }
+
+function positionFrom(m: any, payload: Uint8Array): DecodedPosition | null {
+  const pos = decodeBin(m.Mesh.PositionSchema, payload);
+  if (pos.latitudeI === undefined && pos.longitudeI === undefined) return null;
+  return {
+    latitude: Number(pos.latitudeI ?? 0) / 1e7,
+    longitude: Number(pos.longitudeI ?? 0) / 1e7,
+    altitudeM: pos.altitude !== undefined ? Number(pos.altitude) : null,
+  };
+}
+
+/**
+ * Decode a bare POSITION_APP payload (the inner Data.payload bytes) to lat/lon (degrees) and
+ * altitude, or null if it carries no fix. Exposed for the coverage-sample backfill. Kept here so
+ * ALL @meshtastic/protobufs access stays in this one file (Rule 7).
+ */
+export async function decodePositionPayload(payload: Uint8Array): Promise<DecodedPosition | null> {
+  const m = await pb();
+  try {
+    return positionFrom(m, payload);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decode a full serialized MeshPacket to a position, as some external stores keep it (e.g. a
+ * MeshView packet DB stores `MeshPacket.SerializeToString()`, not the bare payload). Extracts the
+ * decrypted Data.payload and parses it as a Position; null unless it is a decoded POSITION_APP.
+ */
+export async function decodeMeshPacketPosition(bytes: Uint8Array): Promise<DecodedPosition | null> {
+  const m = await pb();
+  try {
+    const mp = decodeBin(m.Mesh.MeshPacketSchema, bytes);
+    const v = mp?.payloadVariant;
+    if (v?.case !== "decoded" || !v.value) return null;
+    if (Number(v.value.portnum) !== 3) return null; // POSITION_APP
+    const payload = v.value.payload as Uint8Array | undefined;
+    if (!payload || !payload.length) return null;
+    return positionFrom(m, payload);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Decode a protobuf ServiceEnvelope. Throws DecodeError on malformed bytes.
  * Undecryptable packets return with `packet.encrypted` set and `decoded` null.

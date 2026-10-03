@@ -5,7 +5,7 @@ import type { HopWatchConfig } from "../config/schema.ts";
 
 interface Automation {
   id: string; enabled: boolean; kind: "daily" | "interval"; at: string; every_minutes: number;
-  transport: "mqtt" | "rf"; channel: string; template: string;
+  transport: "mqtt" | "rf" | "both"; channel: string; template: string;
 }
 
 interface MeshStats { count: number; total: number; gateways: number; packets: number; msgs: number }
@@ -36,11 +36,16 @@ export async function runAutomations(cfg: HopWatchConfig): Promise<number> {
     if (!(await isDue(a, localHM, zone, now))) continue;
     if (!stats) stats = await meshStats();
     const text = render(a.template, stats, cfg, zone);
-    await enqueueTx({
-      createdBy: `automation:${a.id}`, transport: a.transport === "rf" ? "node" : "mqtt", kind: "text",
-      channelId: a.channel || null, toNode: null, fromNode: tx.from_node,
-      payloadText: text.slice(0, 220), hopLimit: tx.default_hop_limit, wantAck: false,
-    });
+    // "both" fires the same message over each transport (two outbox entries, one RF one MQTT). Both
+    // share the automation:<id> marker, so isDue still dedups correctly (one row is enough).
+    const transports: ("node" | "mqtt")[] = a.transport === "both" ? ["node", "mqtt"] : [a.transport === "rf" ? "node" : "mqtt"];
+    for (const transport of transports) {
+      await enqueueTx({
+        createdBy: `automation:${a.id}`, transport, kind: "text",
+        channelId: a.channel || null, toNode: null, fromNode: tx.from_node,
+        payloadText: text.slice(0, 220), hopLimit: tx.default_hop_limit, wantAck: false,
+      });
+    }
     fired++;
   }
   if (fired) console.log(`[worker] fired ${fired} automation(s)`);

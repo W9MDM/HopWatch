@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export interface Automation {
   id: string; enabled: boolean; kind: "daily" | "interval"; at: string; every_minutes: number;
-  transport: "mqtt" | "rf"; channel: string; template: string;
+  transport: "mqtt" | "rf" | "both"; channel: string; template: string;
 }
 
 const inp = "h-8 rounded-md border border-line bg-raised px-2 text-[12px] text-ink focus:border-accent focus:outline-none";
@@ -52,7 +52,7 @@ export function AutomationsManager({ initial }: { initial: Automation[] }) {
                 ? <label className="space-y-1"><span className="block stat-label">At (HH:MM)</span><input className={`${inp} w-20`} value={r.at} onChange={(e) => upd(i, { at: e.target.value })} placeholder="09:00" /></label>
                 : <label className="space-y-1"><span className="block stat-label">Every (min)</span><input type="number" className={`${inp} w-20`} value={String(r.every_minutes)} onChange={(e) => upd(i, { every_minutes: Number(e.target.value) })} /></label>}
               <label className="space-y-1"><span className="block stat-label">Transport</span>
-                <select className={`${inp} w-24`} value={r.transport} onChange={(e) => upd(i, { transport: e.target.value as Automation["transport"] })}><option value="mqtt">MQTT</option><option value="rf">RF</option></select>
+                <select className={`${inp} w-24`} value={r.transport} onChange={(e) => upd(i, { transport: e.target.value as Automation["transport"] })}><option value="mqtt">MQTT</option><option value="rf">RF</option><option value="both">Both</option></select>
               </label>
               <label className="space-y-1"><span className="block stat-label">Channel</span><input className={`${inp} w-28`} value={r.channel} onChange={(e) => upd(i, { channel: e.target.value })} placeholder="LongFast" /></label>
               <button className="btn btn-outline h-8 px-2 text-[12px]" onClick={() => remove(i)}>remove</button>

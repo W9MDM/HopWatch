@@ -4,13 +4,14 @@ import { useState } from "react";
 
 // Admin controls on the node page: ignore all traffic (mute) and ignore location (hide a
 // bad GPS fix from the maps). Shown only to admins.
-export function NodeAdminControls({ nodeId, muted, positionIgnored, rfHeightM, rfEirpDbm }: {
-  nodeId: number; muted: boolean; positionIgnored: boolean; rfHeightM: number | null; rfEirpDbm: number | null;
+export function NodeAdminControls({ nodeId, muted, positionIgnored, rfHeightM, rfEirpDbm, rfAntennaDbi }: {
+  nodeId: number; muted: boolean; positionIgnored: boolean; rfHeightM: number | null; rfEirpDbm: number | null; rfAntennaDbi: number | null;
 }) {
   const [isMuted, setMuted] = useState(muted);
   const [ignored, setIgnored] = useState(positionIgnored);
   const [height, setHeight] = useState(rfHeightM == null ? "" : String(rfHeightM));
   const [eirp, setEirp] = useState(rfEirpDbm == null ? "" : String(rfEirpDbm));
+  const [antenna, setAntenna] = useState(rfAntennaDbi == null ? "" : String(rfAntennaDbi));
   const [rfNote, setRfNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export function NodeAdminControls({ nodeId, muted, positionIgnored, rfHeightM, r
     try {
       const r = await fetch(`/api/v1/admin/nodes/${nodeId}/rf-profile`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ height_m: height === "" ? null : Number(height), eirp_dbm: eirp === "" ? null : Number(eirp) }),
+        body: JSON.stringify({ height_m: height === "" ? null : Number(height), eirp_dbm: eirp === "" ? null : Number(eirp), antenna_dbi: antenna === "" ? null : Number(antenna) }),
       });
       if (r.ok) setRfNote("Saved. Predicted coverage updates on the coverage map.");
       else setError((await r.json().catch(() => ({}))).error ?? "failed");
@@ -65,12 +66,16 @@ export function NodeAdminControls({ nodeId, muted, positionIgnored, rfHeightM, r
           <input type="number" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="from altitude"
             className="h-8 w-32 rounded-md border border-line bg-raised px-2 text-[13px] text-ink" />
         </label>
+        <label className="space-y-1"><span className="block text-[11px] text-ink-faint">Antenna gain (dBi)</span>
+          <input type="number" step="0.1" value={antenna} onChange={(e) => setAntenna(e.target.value)} placeholder="default"
+            className="h-8 w-24 rounded-md border border-line bg-raised px-2 text-[13px] text-ink" />
+        </label>
         <label className="space-y-1"><span className="block text-[11px] text-ink-faint">EIRP (dBm)</span>
-          <input type="number" value={eirp} onChange={(e) => setEirp(e.target.value)} placeholder="default"
+          <input type="number" value={eirp} onChange={(e) => setEirp(e.target.value)} placeholder="from antenna"
             className="h-8 w-24 rounded-md border border-line bg-raised px-2 text-[13px] text-ink" />
         </label>
         <button className="btn btn-outline h-8 px-3 text-[12px]" disabled={busy} onClick={saveRf}>Save RF</button>
-        <span className="text-[11px] text-ink-faint">blank = default (height from GPS altitude, EIRP from region)</span>
+        <span className="text-[11px] text-ink-faint">blank = default. Set antenna gain to derive EIRP from it; an explicit EIRP overrides the gain.</span>
       </div>
       {rfNote && <span className="text-[12px] text-ok">{rfNote}</span>}
       {error && <span className="text-[12px] text-accent-strong">{error}</span>}

@@ -12,6 +12,7 @@ export interface GeneralSettings {
   privacy: { metrics_public: boolean; fuzz_positions: boolean; fuzz_decimals: number };
   updates: { enabled: boolean; github_repo: string };
   geo_fence: { enabled: boolean; min_lat: number; max_lat: number; min_lon: number; max_lon: number };
+  wardrive: { exclude_mobile_gateways: boolean; mobile_span_deg: number; mobile_min_fixes: number };
   retention: { raw_payload_days: number; decoded_packet_days: number; telemetry_days: number; reception_rollup_hour_days: number; live_events_minutes: number };
   features: { live_views: boolean; aprs_is_export: boolean; reference_sheet_pdf: boolean; ambience_mode: boolean };
   livemap: { enabled: boolean; inference_window_hours: number; gateway_rings_default: boolean; audio_default: boolean; max_animations_per_sec: number; trail_decay_seconds: number };
@@ -42,6 +43,7 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
   const priv = <K extends keyof GeneralSettings["privacy"]>(k: K, v: GeneralSettings["privacy"][K]) => setS({ ...s, privacy: { ...s.privacy, [k]: v } });
   const upd = <K extends keyof GeneralSettings["updates"]>(k: K, v: GeneralSettings["updates"][K]) => setS({ ...s, updates: { ...s.updates, [k]: v } });
   const gf = <K extends keyof GeneralSettings["geo_fence"]>(k: K, v: GeneralSettings["geo_fence"][K]) => setS({ ...s, geo_fence: { ...s.geo_fence, [k]: v } });
+  const wd = <K extends keyof GeneralSettings["wardrive"]>(k: K, v: GeneralSettings["wardrive"][K]) => setS({ ...s, wardrive: { ...s.wardrive, [k]: v } });
 
   function onIcon(file?: File) {
     setError(null);
@@ -195,6 +197,16 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
           <label className="space-y-1"><span className="block stat-label">Max lon</span><input type="number" step="0.001" value={s.geo_fence.max_lon} onChange={(e) => gf("max_lon", Number(e.target.value))} className={`${inp} w-28`} /></label>
         </div>
         <p className="text-[11px] text-ink-faint">When on, nodes whose known position falls outside this lat/lon box are marked position-ignored (hidden from maps, coverage, and the graph) on the worker's next slow pass. It only hides, never deletes; a node hidden by mistake can be un-ignored on its node page. Leave off (or a zero box) to disable.</p>
+      </div>
+
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="stat-label">Wardrive heat map</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.wardrive.exclude_mobile_gateways} onChange={(e) => wd("exclude_mobile_gateways", e.target.checked)} /> Exclude mobile gateways</label>
+          <label className="space-y-1"><span className="block stat-label">Mobile span (deg)</span><input type="number" step="0.01" min="0.01" value={s.wardrive.mobile_span_deg} onChange={(e) => wd("mobile_span_deg", Number(e.target.value))} className={`${inp} w-28`} /></label>
+          <label className="space-y-1"><span className="block stat-label">Min fixes</span><input type="number" step="1" min="1" value={s.wardrive.mobile_min_fixes} onChange={(e) => wd("mobile_min_fixes", Number(e.target.value))} className={`${inp} w-24`} /></label>
+        </div>
+        <p className="text-[11px] text-ink-faint">A coverage sample only means something when the gateway that heard it sits still. A gateway riding along with a node (same vehicle) hears it strongly the whole way and paints a false trail. The worker flags a node mobile when its own GPS spans more than the span (in degrees, ~0.2 = ~22 km) across at least this many fixes; with exclusion on, the map drops samples heard by those gateways. The raw samples are kept, only the map view filters.</p>
       </div>
 
       <div className="space-y-2 border-t border-line pt-3">

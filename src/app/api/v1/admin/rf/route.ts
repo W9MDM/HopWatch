@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
     },
     coverage: {
       default_eirp_dbm: num(b.coverage?.default_eirp_dbm, 30, -20, 60),
+      default_tx_power_dbm: num(b.coverage?.default_tx_power_dbm, 22, -20, 40),
       default_height_m: num(b.coverage?.default_height_m, 8, 0, 1000),
       rx_height_m: num(b.coverage?.rx_height_m, 2, 0, 1000),
       rx_sensitivity_dbm: num(b.coverage?.rx_sensitivity_dbm, -128, -160, -60),

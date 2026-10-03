@@ -8,7 +8,7 @@ import { formatNodeId } from "../meshtastic/types.ts";
 import { buildNodeElement, DARK_TILES, DARK_ATTRIB, estColor, NODE_TYPES, matchesNodeType } from "../lib/mapicons.ts";
 import { circlePolygon } from "../lib/geo.ts";
 import { MapLegend } from "./MapLegend.tsx";
-import { MapLayersPanel, AGE_STEPS, withinAge, ageStepForMinutes } from "./MapLayersPanel.tsx";
+import { MapLayersPanel, AGE_STEPS, withinAge, ageStepForMinutes, NEW_STEPS, isNewWithin, HOP_STEPS, withinHops } from "./MapLayersPanel.tsx";
 import { cn } from "../lib/cn.ts";
 
 export interface HeardEntry { gateway_id: number; name: string | null; broker: string | null; status: string; rssi: number | null }
@@ -16,7 +16,7 @@ export interface MapNode {
   node_id: number; long_name: string | null; short_name: string | null; role: string | null;
   hw_model: string | null; firmware_version: string | null; is_gateway: number; is_relay: number;
   latitude: number; longitude: number; altitude_m: number | null;
-  last_seen_at: string | null; hops: number | null; direct_gateways: number; best_rssi: number | null;
+  last_seen_at: string | null; first_seen_at: string | null; hops: number | null; direct_gateways: number; best_rssi: number | null;
   total_packet_count: number; total_reception_count: number;
   battery: number | null; voltage: number | null; chan_util: number | null;
   position_source: "gps" | "estimated"; confidence_radius_m: number | null; method_tier: number | null;
@@ -112,6 +112,8 @@ export function MeshMap({ nodes, links, tile, brokers, channels, filter, canClai
   // i.e. nodes present only via their own MQTT uplink. hops is RF-derived, so null = no RF.
   const [rfOnly, setRfOnly] = useState(false);
   const [ageIdx, setAgeIdx] = useState(ageStepForMinutes(defaultMaxAgeMin));
+  const [newIdx, setNewIdx] = useState(0); // "New nodes" filter (first-seen window); 0 = Off
+  const [hopIdx, setHopIdx] = useState(HOP_STEPS.length - 1); // "Max hops"; last step = All
   const [nodeType, setNodeType] = useState("all");
   const [linkTypes, setLinkTypes] = useState<LinkTypes>(DEFAULT_LINK_TYPES);
   const persist = (key: string, v: boolean) => { try { localStorage.setItem(key, v ? "1" : "0"); } catch { /* ignore */ } };
@@ -135,13 +137,19 @@ export function MeshMap({ nodes, links, tile, brokers, channels, filter, canClai
     } catch { /* keep defaults */ }
     const nt = localStorage.getItem("hopwatch_map_type");
     if (nt) setNodeType(nt);
+    const ni = Number(localStorage.getItem("hopwatch_map_newnodes"));
+    if (Number.isInteger(ni) && ni > 0 && ni < NEW_STEPS.length) setNewIdx(ni);
+    const hi = Number(localStorage.getItem("hopwatch_map_maxhops"));
+    if (Number.isInteger(hi) && hi >= 0 && hi < HOP_STEPS.length) setHopIdx(hi);
   }, []);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const maxMin = AGE_STEPS[ageIdx]!.min;
-    const aged = nodes.filter((n) => withinAge(n.last_seen_at, maxMin) && matchesNodeType(n.role, !!n.is_gateway, nodeType));
+    const newHours = NEW_STEPS[newIdx]!.hours;
+    const maxHops = HOP_STEPS[hopIdx]!.max;
+    const aged = nodes.filter((n) => withinAge(n.last_seen_at, maxMin) && isNewWithin(n.first_seen_at, newHours) && withinHops(n.hops, maxHops) && matchesNodeType(n.role, !!n.is_gateway, nodeType));
     // RF-only applies to real-position nodes; estimated ones have their own toggle and are
     // RF-derived by construction (estimation uses direct RF receptions).
     const real = aged.filter((n) => n.position_source !== "estimated" && (!rfOnly || n.hops != null));
@@ -252,6 +260,7 @@ export function MeshMap({ nodes, links, tile, brokers, channels, filter, canClai
           row("Packets / rx", `${n.total_packet_count.toLocaleString()} / ${n.total_reception_count.toLocaleString()}`) +
           row("Position", `${n.latitude.toFixed(4)}, ${n.longitude.toFixed(4)}${n.altitude_m != null ? ` · ${Math.round(n.altitude_m)} m` : ""}`) +
           row("Last heard", ageStr(n.last_seen_at)) +
+          (n.first_seen_at ? row("First seen", ageStr(n.first_seen_at)) : "") +
           `</div>` + heardHtml(n.heard_by, popFaint, popText) +
           (canClaim ? `<button data-claim="${n.node_id}" style="margin-top:8px;width:100%;padding:5px 8px;border-radius:6px;border:1px solid #3f9e63;background:#3f9e63;color:#0b0b0a;font-weight:600;cursor:pointer;font-size:12px">Claim this node</button>` : "") +
           `</div>`;
@@ -295,12 +304,14 @@ export function MeshMap({ nodes, links, tile, brokers, channels, filter, canClai
       for (const m of markers) m.remove();
       map.remove();
     };
-  }, [nodes, links, tile, router, dark, labels, shortNames, showEst, showAccuracy, rfOnly, ageIdx, nodeType, linkTypes, canClaim]);
+  }, [nodes, links, tile, router, dark, labels, shortNames, showEst, showAccuracy, rfOnly, ageIdx, newIdx, hopIdx, nodeType, linkTypes, canClaim]);
 
   const ctl = (active: boolean) => cn("rounded-md border px-3 py-1 text-[12px] font-medium shadow",
     dark ? "border-line-strong bg-surface text-ink" : "border-neutral-300 bg-white text-neutral-900", !active && "opacity-70");
   const sel = "h-8 rounded-md border border-line bg-raised px-2 text-[12px] text-ink";
   const setAge = (i: number) => setAgeIdx(i);
+  const setNew = (i: number) => { setNewIdx(i); try { localStorage.setItem("hopwatch_map_newnodes", String(i)); } catch { /* ignore */ } };
+  const setHops = (i: number) => { setHopIdx(i); try { localStorage.setItem("hopwatch_map_maxhops", String(i)); } catch { /* ignore */ } };
   const layerToggles = [
     { key: "names", label: "Node names", checked: labels, onChange: (v: boolean) => { setLabels(v); persist("hopwatch_map_labels", v); } },
     { key: "shortnames", label: "Short names", checked: shortNames, onChange: (v: boolean) => { setShortNames(v); persist("hopwatch_map_shortnames", v); } },
@@ -339,7 +350,7 @@ export function MeshMap({ nodes, links, tile, brokers, channels, filter, canClai
           {channels.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
-      <MapLayersPanel toggles={layerToggles} maxAge={{ steps: AGE_STEPS, index: ageIdx, onChange: setAge }} />
+      <MapLayersPanel toggles={layerToggles} maxAge={{ steps: AGE_STEPS, index: ageIdx, onChange: setAge }} maxHops={{ steps: HOP_STEPS, index: hopIdx, onChange: setHops }} newFilter={{ steps: NEW_STEPS, index: newIdx, onChange: setNew }} />
       <MapLegend showEstimated />
       <div ref={ref} className="h-[70vh] w-full overflow-hidden rounded-xl border border-line" />
     </div>

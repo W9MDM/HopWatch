@@ -205,6 +205,9 @@ const retention = z
     // Non-partitioned rollup tables (node_rollup_hour, reception_rollup_day): pruned by age only
     // when rollups_indefinite is false.
     rollup_days: z.number().int().positive().default(730),
+    // Wardrive RF coverage samples (coverage_sample): pruned by age. Kept long so the /wardrive
+    // heat map accumulates history. 0 disables pruning (keep forever).
+    coverage_sample_days: z.number().int().nonnegative().default(1095),
   })
   .refine((r) => r.raw_payload_days <= r.decoded_packet_days, {
     message: "retention.raw_payload_days must be <= retention.decoded_packet_days",
@@ -584,12 +587,25 @@ export const configSchema = z.object({
   coverage: z
     .object({
       default_eirp_dbm: z.number().default(30), // regional EIRP cap (US ~30)
+      default_tx_power_dbm: z.number().default(22), // assumed conducted TX power; + a node's antenna dBi = its EIRP
       default_height_m: z.number().positive().default(8),
       rx_height_m: z.number().positive().default(2), // assumed receiver antenna height
       rx_sensitivity_dbm: z.number().default(-128),
       path_loss_exponent: z.number().positive().default(2.7),
       reference_loss_db_1km: z.number().default(100),
       max_radius_km: z.number().positive().default(60),
+    })
+    .default({}),
+  // Wardrive RF coverage heat map (/wardrive). A coverage sample is only honest when the gateway
+  // that heard the transmission is a FIXED point: a mobile gateway riding along with a node hears
+  // it perfectly the whole drive, painting a bogus "great coverage" trail. The worker flags a node
+  // mobile when its own GPS spans more than `mobile_span_deg` across at least `mobile_min_fixes`
+  // fixes; the map then drops samples from mobile gateways when `exclude_mobile_gateways` is on.
+  wardrive: z
+    .object({
+      exclude_mobile_gateways: z.boolean().default(true),
+      mobile_span_deg: z.number().positive().default(0.2), // ~22 km lat; wider own-track => mobile
+      mobile_min_fixes: z.number().int().positive().default(4),
     })
     .default({}),
   // MQTT text bridge (opt-in, off by default). Forwards TEXT_MESSAGE_APP packets between the
@@ -653,7 +669,7 @@ export const configSchema = z.object({
         kind: z.enum(["daily", "interval"]).default("daily"),
         at: z.string().default("09:00"), // HH:MM local (daily)
         every_minutes: z.number().int().positive().default(60), // interval
-        transport: z.enum(["mqtt", "rf"]).default("mqtt"),
+        transport: z.enum(["mqtt", "rf", "both"]).default("mqtt"),
         channel: z.string().default(""),
         template: z.string().default(""),
       }),

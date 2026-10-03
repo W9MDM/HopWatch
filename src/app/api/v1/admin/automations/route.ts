@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       kind: a.kind === "interval" ? "interval" : "daily",
       at: /^\d{2}:\d{2}$/.test(String(a.at)) ? String(a.at) : "09:00",
       every_minutes: Math.min(10080, Math.max(1, Math.floor(Number(a.every_minutes) || 60))),
-      transport: a.transport === "rf" ? "rf" : "mqtt",
+      transport: a.transport === "rf" ? "rf" : a.transport === "both" ? "both" : "mqtt",
       channel: String(a.channel ?? "").slice(0, 64),
       template: String(a.template ?? "").slice(0, 220),
     };

@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
     retention: cfg.retention,
     features: cfg.features,
     livemap: cfg.livemap,
+    wardrive: cfg.wardrive,
   });
 }
 
@@ -159,6 +160,11 @@ export async function POST(req: NextRequest) {
       audio_default: !!b.livemap?.audio_default,
       max_animations_per_sec: num(b.livemap?.max_animations_per_sec, 50, 1, 1000),
       trail_decay_seconds: num(b.livemap?.trail_decay_seconds, 30, 1, 600),
+    },
+    wardrive: {
+      exclude_mobile_gateways: b.wardrive?.exclude_mobile_gateways !== false, // default on
+      mobile_span_deg: num(b.wardrive?.mobile_span_deg, 0.2, 0.01, 90),
+      mobile_min_fixes: num(b.wardrive?.mobile_min_fixes, 4, 1, 100000),
     },
   };
   try {

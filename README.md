@@ -197,11 +197,22 @@ Node processes; the only channel between them is the database.
   by their 4-char short name, an always-visible key, broker/channel filters, an RF-heard-only
   layer toggle that hides nodes present only via their own MQTT uplink, and estimated-node
   overlay):
-  - **Map:** node positions plus RF links, hop-colored rings (0 direct .. 7+).
+  - **Map:** node positions plus RF links, hop-colored rings (0 direct .. 7+). Controls include a
+    max-age slider, a max-hops slider (show only nodes within N hops of a gateway, 0 = direct-heard
+    only), and a "New" filter (show only nodes first seen in the last 24h / 48h / 7d); the New filter
+    is also on the coverage map.
   - **Live map:** animated SSE pulses of observed receptions (source -> relay -> gateway),
     gateway rings, optional audio, and a replayable topology underlay.
   - **Coverage heatmap:** nodes colored by direct-gateway redundancy, sized by RSSI, with
-    predicted RF range rings.
+    predicted RF range rings. Each node's ring uses a per-node RF profile (antenna height, antenna
+    gain in dBi, or an explicit EIRP override, editable on the node page); antenna gain derives EIRP
+    from an assumed TX power, capped at the regional limit. GPS altitude is not used as antenna
+    height (elevation needs terrain data).
+  - **Wardrive:** an actual over-the-air RF coverage heat map, built from GPS position packets and
+    where the mesh heard them. Drive with a GPS node and each spot becomes a sample. Two views:
+    **Signal** colors each direct (zero-hop) reception by SNR and excludes mobile gateways; **Reach**
+    adds relayed hits and colors each spot by the fewest hops it took to reach the network.
+    Backfillable from history (`scripts/backfill-coverage.ts`, incl. an optional MeshView packet DB).
   - **History** and **Replay:** time-windowed and replayable views of past topology/receptions.
   - **Graph:** force-directed node/link view laid out in **hop rings** (BFS depth from the gateway
     core, so each relay hop sits one faint ring further out and the topology declutters); focus/center
@@ -218,6 +229,10 @@ Node processes; the only channel between them is the database.
   **Distributions** (a mesh **activity clock** plus node/gateway activity, signal, routing, and
   protocol distributions). A separate **scoreboard** ranks operators by nodes they run, workhorse
   gateways, longest uptime, and highest altitude.
+- **Spectrum:** a diverging traffic chart of RF receptions per hour, stacked by packet type, with
+  direct (zero-hop) receptions rising above the line and relayed ones below. Headline cards show
+  total direct/relayed, dupe rate, mean SNR, and a decode-error count; selectable 12h/24h/3d/7d
+  window and 10m/15m/30m/1h bucket, with a hover crosshair. A compact strip also sits on the dashboard.
 - **RF / propagation:** link-budget validator (FSPL, Fresnel clearance, optional terrain),
   a **line-of-sight (LOS)** profile (the picked pair is encoded in the URL, so a comparison is a
   shareable link, with a Copy link button), tropospheric-propagation detection with a **space-weather**
@@ -429,8 +444,29 @@ restart services):
 ```bash
 bash scripts/linux-update.sh
 
-Flags: `linux-install.sh` takes `--no-db`, `--no-systemd`, `--no-build`, `--user=NAME`;
+Flags: `linux-install.sh` takes `--no-db`, `--no-systemd`, `--no-build`, `--user=NAME`, `--with-mqtt`;
 `linux-update.sh` takes `--no-build`, `--no-restart`, `--no-pull`.
+
+## Run your own MQTT broker
+
+HopWatch is a reader: it ingests from one or more MQTT brokers. The public broker
+(`mqtt.meshtastic.org`) rate-limits and strips detail (neighbor info, precise position), so a live
+map built from it cannot show neighbor links. Point your gateways at your **own** broker and you get
+everything they uplink: neighbors, positions, full coverage. A one-shot installer sets up a
+Mosquitto broker tuned for Meshtastic:
+
+```bash
+sudo bash scripts/install-mqtt.sh                 # auth on, user "meshtastic", random password
+sudo bash scripts/install-mqtt.sh --anonymous     # no auth (trusted LAN only)
+# flags: --user=NAME --password=SECRET --anonymous --port=N --no-service
+```
+
+It installs Mosquitto, writes a Meshtastic-tuned config with a network listener, creates the user,
+enables the service, and prints the exact gateway settings. It is standalone (you can run it on any
+Debian/Ubuntu host for MeshView or other tooling without installing HopWatch), or run the full
+install with `--with-mqtt` to get both. Then add the broker in `/admin > Settings > MQTT brokers`
+(host `127.0.0.1`, topic `msh/#`). On each gateway: MQTT enabled, Map reporting on, channel Uplink
+enabled, so neighbor/position data actually reaches the broker.
 
 ## Setup (manual)
 

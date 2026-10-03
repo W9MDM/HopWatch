@@ -1,6 +1,6 @@
 import { query } from "../db/client.ts";
 import type { HopWatchConfig } from "../config/schema.ts";
-import { matchesPattern, fillTemplate, pickReplyTemplate, triggerAllowedOnChannel } from "../lib/autoresponder.ts";
+import { matchesPattern, fillTemplate, pickReplyTemplate, triggerAllowedOnChannel, looksLikeAutoAck } from "../lib/autoresponder.ts";
 import { formatNodeId } from "../meshtastic/types.ts";
 import { enqueueTx, outboxBacklog } from "../db/tx.ts";
 import { getChannelKeys } from "../db/settings.ts";
@@ -97,6 +97,10 @@ export async function runAutoResponder(cfg: HopWatchConfig): Promise<number> {
 
   let n = 0;
   for (const m of rows) {
+    // Never reply to another responder's acknowledgement: two auto-responders on the same channel
+    // (ours and, say, a neighboring mesh's) would otherwise ping-pong ACKs forever, and a foreign
+    // "ACK ... Test received ... N hops" wrongly trips a "test" trigger.
+    if (looksLikeAutoAck(m.body)) continue;
     const trigger = ar.triggers.find((t) => matchesPattern(m.body, t.pattern) && triggerAllowedOnChannel(t.channels, m.channel_id));
     if (!trigger) continue;
     const incomingDm = m.to_node_id === tx.from_node;
@@ -188,6 +192,7 @@ export async function runWelcome(cfg: HopWatchConfig): Promise<number> {
      ) h ON h.from_node_id = n.node_id
      WHERE n.first_seen_at >= (UTC_TIMESTAMP() - INTERVAL 60 MINUTE)
        AND n.node_id <> ?
+       AND n.long_name IS NOT NULL AND n.long_name <> ''
        AND h.hops IS NOT NULL AND h.hops <= ?
        AND NOT EXISTS (SELECT 1 FROM tx_outbox WHERE created_by = CONCAT(?, ':', n.node_id))
      ORDER BY n.first_seen_at DESC LIMIT 5`,

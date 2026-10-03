@@ -64,7 +64,7 @@ export function DiscordBotManager({ initial }: { initial: Init }) {
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="space-y-1"><span className="stat-label">Application ID</span>
-          <input className={inp} value={appId} onChange={(e) => setAppId(e.target.value)} placeholder="e.g. 123456789012345678" />
+          <input className={inp} value={appId} onChange={(e) => setAppId(e.target.value)} placeholder="e.g. 1549837958641618965" />
         </label>
         <label className="space-y-1"><span className="stat-label">Guild ID (optional, for instant commands)</span>
           <input className={inp} value={guildId} onChange={(e) => setGuildId(e.target.value)} placeholder="your server id, or leave blank for global" />
