@@ -751,6 +751,36 @@ export const configSchema = z.object({
       ambience_mode: z.boolean().default(false),
     })
     .default({}),
+  // Instance registry (opt-in; off by default both ways). A deployment can ANNOUNCE itself to a hub
+  // so a directory of HopWatch instances exists, and any instance can BE a hub that collects those
+  // announcements. The heartbeat is minimal identity only (name, public URL, version, timestamps),
+  // sent over HTTP (not the mesh), and carries no node data, telemetry, or secrets. `announce.enabled`
+  // makes this instance report to `announce.hub_url`; `hub.enabled` makes it accept heartbeats at
+  // /api/v1/registry/announce and show the /admin/instances directory.
+  registry: z
+    .object({
+      announce: z
+        .object({
+          enabled: z.boolean().default(false),
+          // Hub to report to. Defaults to the public HopWatch hub; point it at any instance running
+          // as a hub, or disable it. No trailing slash needed.
+          hub_url: z.string().default("https://hopwatch.nwimesh.net"),
+          // Display name + public URL to report. Empty falls back to server.ui.brand_name and
+          // server.public_url respectively.
+          name: z.string().default(""),
+          public_url: z.string().default(""),
+          interval_minutes: z.number().int().positive().default(360), // heartbeat cadence (6h)
+        })
+        .default({}),
+      hub: z
+        .object({
+          enabled: z.boolean().default(false),
+          // Hide instances not heard from in this many days from the directory. 0 = never age out.
+          stale_days: z.number().int().nonnegative().default(30),
+        })
+        .default({}),
+    })
+    .default({}),
   // Discord slash-command bot, served over HTTP interactions (no persistent gateway; the web process
   // verifies each request's Ed25519 signature and replies). application_id + public_key are public;
   // bot_token is a live credential encrypted at rest (SECRET_PATHS, Rule 6). guild_id is optional: set

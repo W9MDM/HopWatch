@@ -1,6 +1,6 @@
 {
   "name": "hopwatch",
-  "version": "0.2.61",
+  "version": "0.2.62",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-only",
@@ -14,6 +14,7 @@
     "ingest": "tsx src/ingest/index.ts",
     "worker": "tsx src/worker/index.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "registry:optin": "tsx scripts/registry-optin.ts",
     "config:check": "tsx src/config/check.ts",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"

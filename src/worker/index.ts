@@ -25,6 +25,7 @@ import { trimTxLog } from "../db/tx.ts";
 import { installRestartWatcher } from "../lib/servicecontrol.ts";
 import { failInterruptedSends } from "../db/tx.ts";
 import { runNodeDbMaint } from "./nodedbmaint.ts";
+import { runRegistryAnnounce } from "./registry.ts";
 
 // A setInterval whose async body never overlaps itself: if the previous run is still in flight when
 // the timer fires, that tick is skipped. Without this, a slow tick (e.g. a multi-second node TX
@@ -140,6 +141,9 @@ async function main(): Promise<void> {
       });
       await safe("battery-forecast", computeBatteryForecasts);
       await safe("nodedb-maint", () => runNodeDbMaint());
+      await safe("registry-announce", async () => {
+        if (await runRegistryAnnounce(c)) console.log("[worker] announced this instance to the registry hub");
+      });
       await safe("position-estimation", async () => {
         const written = await estimatePositions(c);
         if (written) console.log(`[worker] estimated ${written} node position(s)`);

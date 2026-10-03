@@ -31,6 +31,7 @@ import { listRemoteAdmin } from "../../../db/adminscan.ts";
 import { WeatherAlertsManager, type WeatherAlertsSettings } from "../../../components/WeatherAlertsManager.tsx";
 import { listAlertsSent } from "../../../db/weatheralerts.ts";
 import { BridgeManager, type BridgeSettings } from "../../../components/BridgeManager.tsx";
+import { RegistryManager, type RegistrySettings } from "../../../components/RegistryManager.tsx";
 import { listOutbox } from "../../../db/tx.ts";
 import { listBridgeLog } from "../../../db/queries.ts";
 import { effectiveTopicRoot } from "../../../meshtastic/topic.ts";
@@ -52,6 +53,7 @@ export default async function AdminSettingsPage() {
 
   let brokers, keys, users, notif, forwardRules, forwardChannels, posEst, rf, general, coverageModel, authInitial: AuthInitial, analytics: AnalyticsSettings;
   let tx: TxSettings, txNode, txOutbox, automations: Automation[] = [], bridge: BridgeSettings, bridgeBrokers, bridgeChannels, bridgeLog, zone = "UTC";
+  let registry: RegistrySettings;
   let discordBot = { enabled: false, application_id: "", public_key: "", guild_id: "", has_token: false };
   let remoteAdminRows: Awaited<ReturnType<typeof listRemoteAdmin>> = [];
   let wxSent: Awaited<ReturnType<typeof listAlertsSent>> = [];
@@ -134,6 +136,16 @@ export default async function AdminSettingsPage() {
     automations = eff.automations as unknown as Automation[];
     bridge = eff.bridge as unknown as BridgeSettings;
     wxSettings = eff.weather_alerts as unknown as WeatherAlertsSettings;
+    registry = {
+      announce: {
+        enabled: eff.registry.announce.enabled,
+        hub_url: eff.registry.announce.hub_url,
+        name: eff.registry.announce.name,
+        public_url: eff.registry.announce.public_url,
+        interval_minutes: eff.registry.announce.interval_minutes,
+      },
+      hub: { enabled: eff.registry.hub.enabled, stale_days: eff.registry.hub.stale_days },
+    };
     discordBot = {
       enabled: eff.discord_bot.enabled, application_id: eff.discord_bot.application_id,
       public_key: eff.discord_bot.public_key, guild_id: eff.discord_bot.guild_id, has_token: !!eff.discord_bot.bot_token,
@@ -180,6 +192,7 @@ export default async function AdminSettingsPage() {
           { id: "weather-alerts", label: "Weather alerts", panel: <WeatherAlertsManager initial={wxSettings} initialSent={wxSent} channels={bridgeChannels} brokers={brokers.map((r) => ({ id: r.id, host: r.host }))} /> },
           { id: "diagnostics", label: "Diagnostics", panel: <DiagnosticsCard /> },
           { id: "bridge", label: "MQTT bridge", panel: <BridgeManager initial={bridge} brokers={bridgeBrokers} channels={bridgeChannels} initialLog={bridgeLog} zone={zone} /> },
+          { id: "registry", label: "Registry", panel: <RegistryManager initial={registry} /> },
         ]}
       />
     </div>

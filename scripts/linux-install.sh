@@ -163,6 +163,29 @@ if ! npm run migrate; then
   exit 1
 fi
 
+# --- optional instance registry opt-in ---
+# Opt-in directory: announce this instance to the HopWatch registry hub so a directory of
+# deployments exists. The heartbeat is minimal identity only (name, public URL, version) over
+# HTTP, never the mesh, and no node data/telemetry/secrets. Off unless you say yes here; change
+# it any time in /admin > Settings > Registry. Only prompts on an interactive terminal (a piped
+# or unattended install defaults to NO).
+if [ -r /dev/tty ]; then
+  printf '\nAnnounce this instance to the HopWatch directory so it appears in the registry? [y/N] '
+  read -r REG_ANS </dev/tty || REG_ANS=""
+  case "$REG_ANS" in
+    y|Y|yes|YES)
+      printf 'Public URL for this instance (e.g. https://hopwatch.example.com), or leave blank: '
+      read -r REG_URL </dev/tty || REG_URL=""
+      if REGISTRY_ANNOUNCE=1 REGISTRY_PUBLIC_URL="$REG_URL" npm run registry:optin; then
+        echo "  registry announce enabled (edit in /admin > Settings > Registry)"
+      else
+        echo "  ! could not enable registry announce; turn it on later in /admin > Settings > Registry" >&2
+      fi
+      ;;
+    *) echo "  skipped (not announcing; enable later in /admin > Settings > Registry)" ;;
+  esac
+fi
+
 # --- build ---
 if [ "$BUILD" -eq 1 ]; then
   step "Building web app"

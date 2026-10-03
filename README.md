@@ -324,6 +324,14 @@ off-by-default flags include feeding estimates into the coverage heatmap.
   pageviews and/or server-side Measurement Protocol events, configured in `/admin/settings`
   (the Measurement Protocol API secret is encrypted at rest). See `docs/config.md`.
 
+- **Instance registry** (opt-in, off by default): a directory of HopWatch deployments. Any instance
+  can **announce** itself to a hub (`registry.announce.enabled`) with a periodic minimal-identity
+  heartbeat (name, public URL, version) sent over HTTP, never the mesh, carrying no node data,
+  telemetry, or secrets; and any instance can **be** a hub (`registry.hub.enabled`) that collects
+  them. The hub lists received instances at `/admin/instances` (admin only, with hide/delete
+  moderation) and shows a "Known instances" count tile on the dashboard. Configured in
+  `/admin/settings` -> Registry; `scripts/linux-install.sh` offers to turn announce on at install.
+
 ### API and metrics
 JSON API under `/api/v1`. Read endpoints (module-gated by RBAC) include `packets` (+ CSV,
 `packets/:id`), `nodes` (filterable by `q`/`broker`/`channel`/`role`/`hw`/`kind`/`seen`/`pos`/
@@ -350,10 +358,14 @@ subsystem is enabled and the caller has `can_tx`, `tx/*` (`tx/message`, `tx/trac
 `tx/request`, and `tx/outbox` read/cancel). Discord OAuth login lives under `auth/discord`, and the
 Discord slash-command bot's interactions webhook is the public, signature-verified
 `POST /api/v1/discord/interactions` (no auth guard: each request is authenticated by its Ed25519
-signature, not a session). Admin
+signature, not a session). The opt-in instance registry adds one more public, unauthenticated
+endpoint, `POST /api/v1/registry/announce`: it accepts a minimal-identity heartbeat (id, name,
+public URL, version) from another instance, but only when this instance is a hub
+(`registry.hub.enabled`), and validates and clamps every field. Admin
 endpoints live under `/api/v1/admin` and every one requires an admin session (there is no
 `/api/v1/admin/settings` route; the `/admin/settings` page saves through these). They include config
-(`general`, `auth`, `rf`, `ingest-status`, `automations`, `bridge`), roles, users, brokers, forwarding,
+(`general`, `auth`, `rf`, `ingest-status`, `automations`, `bridge`, `registry` (instance-directory
+settings; `registry/instances` moderates received entries)), roles, users, brokers, forwarding,
 channel-keys, mute-list, notifications, `discord-bot` (bot settings + register slash commands),
 position-estimation, analytics, `tx` (settings) + tx arm/disarm + `tx/auto-responder` +
 `tx/traceroute-settings`, `owned-import`, `discord-unlink`, `node/config` + `node/write`, and the

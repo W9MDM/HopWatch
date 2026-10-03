@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fmtNum, fmtAge } from "../lib/format.ts";
 import { formatNodeId } from "../meshtastic/types.ts";
 import { effectiveConfig } from "../db/appsettings.ts";
+import { countInstances } from "../db/registry.ts";
 
 // UTC instant of the start of "today" in the given IANA zone (uses the current offset).
 function localDayStartUtc(zone: string): Date {
@@ -69,7 +70,13 @@ function TrendCard({ label, values, latest, color }: { label: string; values: nu
 export default async function DashboardPage() {
   const __denied = await moduleDenied("dashboard"); if (__denied) return __denied;
   let zone = "UTC";
-  try { zone = (await effectiveConfig()).server.local_timezone; } catch { /* default UTC */ }
+  let instanceCount: number | null = null;
+  try {
+    const cfg = await effectiveConfig();
+    zone = cfg.server.local_timezone;
+    // Registry directory count (only when this instance is acting as a hub).
+    if (cfg.registry.hub.enabled) instanceCount = await countInstances(cfg.registry.hub.stale_days);
+  } catch { /* default UTC */ }
   let data, health, trends: MeshTrendPoint[] = [], pki = { total: 0, with_key: 0 };
   let texts: TextStats = { total: 0, topSenders: [], byBroker: [] };
   let spectrum: Awaited<ReturnType<typeof getTrafficSpectrum>> | null = null;
@@ -129,6 +136,7 @@ export default async function DashboardPage() {
         <StatTile label="Direct pairs" value={fmtNum(data.directPairs)} />
         <StatTile label="Receptions (24h)" value={fmtNum(data.receptions24h)} />
         <StatTile label="Packets (24h)" value={fmtNum(data.packets24h)} />
+        {instanceCount != null && <StatTile label="Known instances" value={fmtNum(instanceCount)} sub="HopWatch registry" href="/admin/instances" />}
       </div>
 
       {trends.length >= 2 && (

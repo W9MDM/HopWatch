@@ -421,6 +421,25 @@ Related: `retention.coverage_sample_days` controls how long samples are kept.
 | `wardrive.mobile_span_deg` | `0.2` | A node is flagged mobile when its own GPS track spans more than this many degrees (~0.2 = ~22 km) in latitude or longitude. Computed by the worker into `node_mobility`. |
 | `wardrive.mobile_min_fixes` | `4` | Minimum valid position fixes before a node can be judged mobile, so a single stray fix cannot flag a stationary gateway. |
 
+## registry (instance directory, opt-in)
+
+An opt-in directory of HopWatch deployments. A deployment can **announce** itself to a hub, and any
+instance can **be** a hub that collects those announcements and shows them at `/admin/instances`.
+Both sides are off by default. The heartbeat is minimal identity only (a stable random id, display
+name, public URL, and version), sent over HTTP (never the mesh); it carries no node data, telemetry,
+or secrets. Managed in `/admin/settings -> Registry`. The announce heartbeat is sent by the worker
+on its slow loop; the install script can turn announce on with an interactive prompt.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `registry.announce.enabled` | `false` | When true, this instance periodically reports itself to `registry.announce.hub_url`. |
+| `registry.announce.hub_url` | `https://hopwatch.nwimesh.net` | Hub to report to. Point it at any instance running as a hub. No trailing slash needed. |
+| `registry.announce.name` | `""` | Display name to report. Empty falls back to `server.ui.brand_name`. |
+| `registry.announce.public_url` | `""` | Public URL to report. Empty falls back to `server.public_url`. |
+| `registry.announce.interval_minutes` | `360` | Heartbeat cadence (minutes). The worker self-throttles to this even though the slow loop runs more often. |
+| `registry.hub.enabled` | `false` | When true, this instance accepts heartbeats at `POST /api/v1/registry/announce` and shows the `/admin/instances` directory. |
+| `registry.hub.stale_days` | `30` | Hide instances not heard from in this many days from the directory and the dashboard count. `0` = never age out. |
+
 ## aprs_is
 
 `aprs_is` is an open (`record`) block reserved for APRS-IS export configuration; gated by
