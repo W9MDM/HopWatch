@@ -228,7 +228,13 @@ Node processes; the only channel between them is the database.
   distribution, airtime hogs, link asymmetry, an **RSSI-vs-distance** path-loss scatter).
   **Distributions** (a mesh **activity clock** plus node/gateway activity, signal, routing, and
   protocol distributions). A separate **scoreboard** ranks operators by nodes they run, workhorse
-  gateways, longest uptime, and highest altitude.
+  gateways, highest availability (7d), longest uptime, and highest altitude.
+- **Node uptime & availability:** every node page shows an **Uptime & availability** card: its
+  availability over 24h/7d/30d (the fraction of hours it was heard, from the hourly reception
+  rollups, capped at the node's lifetime) with an hourly heard/not-heard grid for the last 7 days,
+  alongside device uptime (the firmware `uptime_seconds` counter), reboots in the last 30 days, and
+  the longest observed continuous run (reboots are detected where the counter resets). Both read
+  already-retained history, so they are populated immediately with no backfill job.
 - **Spectrum:** a diverging traffic chart of RF receptions per hour, stacked by packet type, with
   direct (zero-hop) receptions rising above the line and relayed ones below. Headline cards show
   total direct/relayed, dupe rate, mean SNR, and a decode-error count; selectable 12h/24h/3d/7d

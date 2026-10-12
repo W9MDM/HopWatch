@@ -3,6 +3,7 @@
 import { query, clampLimit } from "./client.ts";
 import { toMysqlUtc } from "../lib/time.ts";
 import { haversineKm } from "../lib/geo.ts";
+import type { UptimePoint } from "../lib/uptime.ts";
 
 export interface PacketFilter {
   fromNodeId?: number;
@@ -1672,6 +1673,61 @@ export async function nodeLatestMetric(nodeId: number, metric: string): Promise<
     [nodeId, metric],
   );
   return rows[0] ? Number(rows[0].value) : null;
+}
+
+/**
+ * Availability: hours the node was heard (by any gateway) within each window, from the hourly
+ * reception rollups. A node is "up" in any hour it was heard. Returns raw heard-hour counts; the
+ * caller turns them into a percentage against the window (capped at the node's lifetime).
+ */
+export async function nodeAvailability(nodeId: number): Promise<{ h24: number; h7d: number; h30d: number }> {
+  const rows = await query<{ h24: number; h7d: number; h30d: number }>(
+    `SELECT
+       COUNT(DISTINCT IF(bucket_start >= UTC_TIMESTAMP() - INTERVAL 1 DAY, bucket_start, NULL)) AS h24,
+       COUNT(DISTINCT IF(bucket_start >= UTC_TIMESTAMP() - INTERVAL 7 DAY, bucket_start, NULL)) AS h7d,
+       COUNT(DISTINCT bucket_start) AS h30d
+     FROM reception_rollup_hour
+     WHERE node_id = ? AND bucket_start >= (UTC_TIMESTAMP() - INTERVAL 30 DAY)`,
+    [nodeId],
+  );
+  const r = rows[0];
+  return { h24: Number(r?.h24 ?? 0), h7d: Number(r?.h7d ?? 0), h30d: Number(r?.h30d ?? 0) };
+}
+
+/** The UTC hour buckets a node was heard in over the last `days` days, for the online/offline grid. */
+export async function nodeUptimeTimeline(nodeId: number, days = 7): Promise<string[]> {
+  const d = clampLimit(days, 30, 7);
+  const rows = await query<{ bucket_start: string }>(
+    `SELECT DISTINCT bucket_start FROM reception_rollup_hour
+      WHERE node_id = ? AND bucket_start >= (UTC_TIMESTAMP() - INTERVAL ? DAY)
+      ORDER BY bucket_start`,
+    [nodeId, d],
+  );
+  return rows.map((r) => r.bucket_start);
+}
+
+/** Device uptime_seconds telemetry over the last `days` days, for reboot detection and the chart. */
+export async function nodeUptimeHistory(nodeId: number, days = 30): Promise<UptimePoint[]> {
+  const d = clampLimit(days, 90, 30);
+  return query<UptimePoint>(
+    `SELECT observed_at, value FROM node_telemetry
+      WHERE node_id = ? AND metric = 'uptime' AND observed_at >= (UTC_TIMESTAMP() - INTERVAL ? DAY)
+      ORDER BY observed_at`,
+    [nodeId, d],
+  );
+}
+
+/** Nodes ranked by availability over the last 7 days (heard-hours out of 168), highest first. */
+export async function availabilityLeaders(limit = 15): Promise<LeaderRow[]> {
+  return query<LeaderRow>(
+    `SELECT r.node_id, COALESCE(n.long_name, n.short_name) AS name, n.short_name AS short_name,
+            COUNT(DISTINCT r.bucket_start) AS value
+     FROM reception_rollup_hour r
+     LEFT JOIN nodes n ON n.node_id = r.node_id
+     WHERE r.bucket_start >= (UTC_TIMESTAMP() - INTERVAL 7 DAY)
+     GROUP BY r.node_id, name, short_name
+     ORDER BY value DESC, r.node_id LIMIT ${clampLimit(limit, 100)}`,
+  );
 }
 
 /** Channels a node transmits on. */

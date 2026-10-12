@@ -1,7 +1,7 @@
 import { moduleDenied } from "../../../components/ModuleGate.tsx";
 import { NodeTabs } from "../../../components/NodeTabs.tsx";
 import Link from "next/link";
-import { getNode, getNodeBiography, nodeTelemetryMetrics, getNodeTelemetry, bestGatewaysForNode, getNodeFingerprint, getBatteryForecast, getNodeNeighbors, nodePortBreakdown, nodeRecentMessages, nodeActivityHeatmap, nodeSignalTrend, nodePositionTrack, nodeReliability, nodeFarthestGateway, nodeHopProfile, nodeLatestMetric, nodeChannels, nodeChattinessPercentile, nodeLatestMetrics, nodeAdvertisements } from "../../../db/queries.ts";
+import { getNode, getNodeBiography, nodeTelemetryMetrics, getNodeTelemetry, bestGatewaysForNode, getNodeFingerprint, getBatteryForecast, getNodeNeighbors, nodePortBreakdown, nodeRecentMessages, nodeActivityHeatmap, nodeSignalTrend, nodePositionTrack, nodeReliability, nodeFarthestGateway, nodeHopProfile, nodeLatestMetric, nodeChannels, nodeChattinessPercentile, nodeLatestMetrics, nodeAdvertisements, nodeAvailability, nodeUptimeTimeline, nodeUptimeHistory } from "../../../db/queries.ts";
 import { portName } from "../../../meshtastic/portnum.ts";
 import { NodeMiniMap } from "../../../components/NodeMiniMap.tsx";
 import { NodeEgoGraph } from "../../../components/NodeEgoGraph.tsx";
@@ -24,6 +24,8 @@ import { ClaimNodeButton } from "../../../components/ClaimNodeButton.tsx";
 import { NodeWatchControls } from "../../../components/NodeWatchControls.tsx";
 import { TelemetryChart, type Series } from "../../../components/TelemetryChart.tsx";
 import { MetricExplorer } from "../../../components/MetricExplorer.tsx";
+import { UptimeCard } from "../../../components/UptimeCard.tsx";
+import { summarizeDeviceUptime, availabilityPct } from "../../../lib/uptime.ts";
 import { mapTiles } from "../../../lib/maptiles.ts";
 
 export const runtime = "nodejs";
@@ -88,9 +90,9 @@ export default async function NodeDetail({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const nodeId = Number(id);
 
-  let node, bio, metrics, bestGw, fpRows, battery, neighbors, ports, recentMsgs, heatmap, signal, track, reliability, farthest, hopProfile, uptimeS, channels, latestMetrics;
+  let node, bio, metrics, bestGw, fpRows, battery, neighbors, ports, recentMsgs, heatmap, signal, track, reliability, farthest, hopProfile, uptimeS, channels, latestMetrics, availability, uptimeTimeline, uptimeHistory;
   try {
-    [node, bio, metrics, bestGw, fpRows, battery, neighbors, ports, recentMsgs, heatmap, signal, track, reliability, farthest, hopProfile, uptimeS, channels, latestMetrics] = await Promise.all([
+    [node, bio, metrics, bestGw, fpRows, battery, neighbors, ports, recentMsgs, heatmap, signal, track, reliability, farthest, hopProfile, uptimeS, channels, latestMetrics, availability, uptimeTimeline, uptimeHistory] = await Promise.all([
       getNode(nodeId),
       getNodeBiography(nodeId),
       nodeTelemetryMetrics(nodeId),
@@ -109,6 +111,9 @@ export default async function NodeDetail({ params }: { params: Promise<{ id: str
       nodeLatestMetric(nodeId, "uptime"),
       nodeChannels(nodeId),
       nodeLatestMetrics(nodeId),
+      nodeAvailability(nodeId),
+      nodeUptimeTimeline(nodeId, 7),
+      nodeUptimeHistory(nodeId, 30),
     ]);
   } catch (e) {
     return <DbError error={e} />;
@@ -183,6 +188,13 @@ export default async function NodeDetail({ params }: { params: Promise<{ id: str
   const totalHeard = reliability.direct + reliability.relayed;
   const directPct = totalHeard > 0 ? Math.round((reliability.direct / totalHeard) * 100) : null;
   const uptimeStr = uptimeS != null ? humanUptime(uptimeS) : null;
+  const upSummary = summarizeDeviceUptime(uptimeHistory);
+  const lifeHours = node.first_seen_at ? Math.max(1, (Date.now() - new Date(node.first_seen_at.replace(" ", "T") + "Z").getTime()) / 3600000) : 1;
+  const availPct = {
+    h24: availabilityPct(availability.h24, 24, lifeHours),
+    h7d: availabilityPct(availability.h7d, 168, lifeHours),
+    h30d: availabilityPct(availability.h30d, 720, lifeHours),
+  };
 
   const chartMetrics = metrics.filter((m) => KEY_METRICS.includes(m)).slice(0, 6);
   const seriesList: Series[] = await Promise.all(
@@ -417,6 +429,15 @@ export default async function NodeDetail({ params }: { params: Promise<{ id: str
           <p className="mt-1 text-[11px] text-ink-faint"><span className="text-rx-direct">green</span> = this node hears them; <span className="text-rx-relayed">amber</span> = they hear this node.</p>
         </div>
       </div>
+
+      <UptimeCard
+        pct={availPct}
+        onlineHours={uptimeTimeline}
+        currentStr={uptimeStr}
+        reboots={upSummary.reboots}
+        lastRebootStr={upSummary.lastRebootAt ? fmtAge(upSummary.lastRebootAt) : null}
+        longestRunStr={upSummary.longestRunS > 0 ? humanUptime(upSummary.longestRunS) : null}
+      />
 
       {signalSeries && signalSeries.points.length > 1 && (
         <div className="card">

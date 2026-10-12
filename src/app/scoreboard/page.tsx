@@ -1,6 +1,6 @@
 import { moduleDenied } from "../../components/ModuleGate.tsx";
 import Link from "next/link";
-import { gatewayCompare, uptimeLeaders, altitudeLeaders, type LeaderRow } from "../../db/queries.ts";
+import { gatewayCompare, uptimeLeaders, altitudeLeaders, availabilityLeaders, type LeaderRow } from "../../db/queries.ts";
 import { operatorScoreboard, type OperatorScore } from "../../db/ownednodes.ts";
 import { fmtNum } from "../../lib/format.ts";
 import { formatNodeId } from "../../meshtastic/types.ts";
@@ -47,9 +47,9 @@ export default async function ScoreboardPage() {
   const __denied = await moduleDenied("scoreboard"); if (__denied) return __denied;
 
   let operators: OperatorScore[];
-  let gateways, uptime: LeaderRow[], altitude: LeaderRow[];
+  let gateways, uptime: LeaderRow[], altitude: LeaderRow[], availability: LeaderRow[];
   try {
-    [operators, gateways, uptime, altitude] = await Promise.all([operatorScoreboard(100), gatewayCompare(), uptimeLeaders(15), altitudeLeaders(15)]);
+    [operators, gateways, uptime, altitude, availability] = await Promise.all([operatorScoreboard(100), gatewayCompare(), uptimeLeaders(15), altitudeLeaders(15), availabilityLeaders(15)]);
   } catch (e) {
     return <DbError error={e} />;
   }
@@ -111,7 +111,8 @@ export default async function ScoreboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Leaderboard title="Highest availability (7d)" rows={availability} fmt={(v) => `${Math.min(100, Math.round((v / 168) * 100))}%`} />
         <Leaderboard title="Longest uptime" rows={uptime} fmt={humanUptime} />
         <Leaderboard title="Highest altitude" rows={altitude} fmt={(v) => `${Math.round(v)} m`} />
       </div>
