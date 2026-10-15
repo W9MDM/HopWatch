@@ -38,17 +38,30 @@ export async function runForwarding(): Promise<number> {
         chSql = ` AND t.channel_id IN (${rule.channels.map(() => "?").join(",")})`;
         params.push(...rule.channels);
       }
-      const rows = await query<{ id: number; from_node_id: number; channel_id: string | null; body: string; name: string | null }>(
-        `SELECT t.id, t.from_node_id, t.channel_id, t.body, n.long_name AS name
+      // A single logical message often lands as SEVERAL text_message rows: a bot (or a node) that
+      // injects the same text on more than one channel, plus the copies that arrive over each MQTT
+      // broker we ingest, each carry a DIFFERENT mesh_packet_id, so they are genuinely distinct
+      // packets and the ingest dedup cannot (and should not) collapse them. Forwarding them all
+      // spams the Discord/Apprise target with identical posts. So we forward each unique
+      // (from_node_id, body) at most once within a short window: `dup` flags any row that repeats an
+      // earlier one, and we skip it while still advancing the cursor past it.
+      const rows = await query<{ id: number; from_node_id: number; channel_id: string | null; body: string; name: string | null; dup: number }>(
+        `SELECT t.id, t.from_node_id, t.channel_id, t.body, n.long_name AS name,
+                EXISTS(
+                  SELECT 1 FROM text_message d
+                  WHERE d.from_node_id = t.from_node_id AND d.body = t.body
+                    AND d.id < t.id AND d.observed_at >= t.observed_at - INTERVAL 15 MINUTE
+                ) AS dup
          FROM text_message t LEFT JOIN nodes n ON n.node_id=t.from_node_id
          WHERE t.id > ? AND t.to_node_id IS NULL${chSql} ORDER BY t.id ASC LIMIT 100`,
         params,
       );
       for (const m of rows) {
+        lastTextId = Math.max(lastTextId, m.id); // advance past every row seen, duplicates included
+        if (m.dup) continue;                     // a cross-channel / cross-broker repeat of the same text
         const who = m.name ?? formatNodeId(m.from_node_id);
         await notify(rule.targets, { title: `Mesh${m.channel_id ? ` [${m.channel_id}]` : ""}`, body: `${who}: ${m.body}` });
         sent++;
-        lastTextId = Math.max(lastTextId, m.id);
       }
     }
 
