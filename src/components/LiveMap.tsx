@@ -316,8 +316,10 @@ export function LiveMap({ cfg, tile, replayRoute, defaultBroker, defaultChannel,
         }
       }
 
-      // Estimated (non-GPS) positions: translucent confidence circles + dashed markers.
-      const estimates = showEst ? (data.estimates ?? []) : [];
+      // Estimated (non-GPS) positions: translucent confidence circles + dashed markers. These must
+      // honour the node-type (role) filter too, exactly like the real nodes above and the coverage
+      // map; otherwise a "routers" filter still drew every estimated node regardless of its role.
+      const estimates = (showEst ? (data.estimates ?? []) : []).filter((n) => matchesNodeType(n.role, false, nodeType));
       const estCircles = (showAccuracy ? estimates : []).map((n) => ({
         type: "Feature" as const,
         geometry: { type: "Polygon" as const, coordinates: [circlePolygon({ lat: n.latitude, lon: n.longitude }, n.confidence_radius_m)] },
