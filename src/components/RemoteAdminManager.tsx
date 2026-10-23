@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 export interface AdminScannerSettings {
-  enabled: boolean; interval_hours: number; max_per_run: number; max_active_age_hours: number; reconfirm_hours: number;
+  enabled: boolean; interval_hours: number; max_per_run: number; max_active_age_hours: number; reconfirm_hours: number; owned_only: boolean;
 }
 interface Row {
   node_id: number; node_hex: string; long_name: string | null; short_name: string | null;
@@ -57,6 +57,7 @@ export function RemoteAdminManager({ initialSettings, initialRows }: { initialSe
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.enabled} onChange={(e) => setS({ ...s, enabled: e.target.checked })} /> Auto-scan enabled</label>
+        <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.owned_only} onChange={(e) => setS({ ...s, owned_only: e.target.checked })} /> Only probe owned nodes (you can only admin your own; off = probe all heard nodes)</label>
         <label className="space-y-1"><span className="block stat-label">Re-probe interval (h)</span><input type="number" value={String(s.interval_hours)} onChange={(e) => setS({ ...s, interval_hours: Number(e.target.value) })} className={`${inputCls} w-28`} /></label>
         <label className="space-y-1"><span className="block stat-label">Max per run</span><input type="number" value={String(s.max_per_run)} onChange={(e) => setS({ ...s, max_per_run: Number(e.target.value) })} className={`${inputCls} w-24`} /></label>
         <label className="space-y-1"><span className="block stat-label">Only nodes seen within (h)</span><input type="number" value={String(s.max_active_age_hours)} onChange={(e) => setS({ ...s, max_active_age_hours: Number(e.target.value) })} className={`${inputCls} w-28`} /></label>

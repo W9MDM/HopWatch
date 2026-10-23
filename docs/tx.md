@@ -180,10 +180,12 @@ station node and only ever probes over the node transport). A node that answers 
 the ingest daemon records it in the **persistent** `remote_admin` table when the response arrives
 on the node RX stream. Unlike a live "recently scanned" view, recorded nodes stay (with first/last
 OK time, success count, firmware, hardware, role) until an admin forgets them. Settings: `enabled`,
-`interval_hours` (retry nodes that have not answered), `max_per_run`, `max_active_age_hours`, and
+`interval_hours` (retry nodes that have not answered), `max_per_run`, `max_active_age_hours`,
 `reconfirm_hours` (re-verify already-confirmed nodes only this often; 0 = never re-probe a node
-that already said yes). Probing is gated by TX enabled + armed + dry-run off; a node only answers
-if this station is an authorized admin on it.
+that already said yes), and `owned_only` (default on: probe only nodes claimed/owned in
+`owned_node`, since you can only admin your own nodes anyway; off probes every recently-heard
+node). Probing is gated by TX enabled + armed + dry-run off; a node only answers if this station
+is an authorized admin on it.
 
 ## Pacing
 

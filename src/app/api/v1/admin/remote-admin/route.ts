@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       max_per_run: num(b.max_per_run, 3, 1, 50),
       max_active_age_hours: num(b.max_active_age_hours, 24, 1, 8760),
       reconfirm_hours: num(b.reconfirm_hours, 0, 0, 8760),
+      owned_only: b.owned_only !== false, // default on; only explicit false probes all heard nodes
     };
     await saveOverrides({ tx: { admin_scanner } });
     return NextResponse.json({ ok: true });

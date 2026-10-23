@@ -20,7 +20,7 @@ export async function runAdminScanner(cfg: HopWatchConfig): Promise<number> {
   if (!cfg.node.host) return 0;
   if (await outboxBacklog() > BACKLOG_MAX) return 0; // let the queue drain before probing more
 
-  const targets = await scanCandidates(sc.max_per_run, sc.interval_hours, sc.max_active_age_hours, sc.reconfirm_hours);
+  const targets = await scanCandidates(sc.max_per_run, sc.interval_hours, sc.max_active_age_hours, sc.reconfirm_hours, sc.owned_only);
   if (targets.length === 0) return 0;
 
   let n = 0;

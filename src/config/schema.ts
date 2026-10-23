@@ -576,6 +576,10 @@ export const configSchema = z.object({
           // Confirmed (administrable) nodes are not re-probed by default; set >0 to re-verify them
           // only every this many hours (refreshes firmware / catches revoked access). 0 = never.
           reconfirm_hours: z.number().int().nonnegative().default(0),
+          // Only probe nodes that are claimed/owned (present in owned_node). You can only remotely
+          // admin your OWN nodes anyway, so probing every heard node just wastes mesh airtime and
+          // piles up failed sends. Default on; set false to probe all recently-heard nodes.
+          owned_only: z.boolean().default(true),
         })
         .default({}),
       // Quick/canned messages shown as one-tap buttons in the compose box.
@@ -764,7 +768,7 @@ export const configSchema = z.object({
           enabled: z.boolean().default(false),
           // Hub to report to. Defaults to the public HopWatch hub; point it at any instance running
           // as a hub, or disable it. No trailing slash needed.
-          hub_url: z.string().default("https://hopwatch.nwimesh.net"),
+          hub_url: z.string().default("https://hopwatch.example.com"),
           // Display name + public URL to report. Empty falls back to server.ui.brand_name and
           // server.public_url respectively.
           name: z.string().default(""),

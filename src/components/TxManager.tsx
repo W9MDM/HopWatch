@@ -13,7 +13,7 @@ export interface TxSettings {
   announce_interval_s: number; traceroute_cooldown_s: number;
   auto_responder: { enabled: boolean; cooldown_s: number; respond_to_dm: boolean; respond_to_channel: boolean; reply_channel: string; reply_transport?: "match" | "both" | "fixed"; triggers: { pattern: string; reply: string; reply_mqtt?: string; reply_via?: "match" | "dm" | "channel" }[] };
   auto_traceroute: { enabled: boolean; send_every_minutes: number; interval_hours: number; max_per_run: number; max_active_age_hours: number; transport: "rf" | "mqtt"; only_routers: boolean };
-  admin_scanner: { enabled: boolean; interval_hours: number; max_per_run: number; max_active_age_hours: number; reconfirm_hours: number };
+  admin_scanner: { enabled: boolean; interval_hours: number; max_per_run: number; max_active_age_hours: number; reconfirm_hours: number; owned_only: boolean };
   canned_messages: string[];
 }
 interface OutboxRow {

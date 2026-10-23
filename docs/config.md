@@ -284,7 +284,7 @@ Passive by default: TX only happens when `tx.enabled` AND `tx.armed` are both tr
 | `tx.auto_responder.cooldown_s` | `300` | Per node+trigger auto-reply cooldown. |
 | `tx.auto_responder.welcome` | disabled | Greet first-time nodes within `within_hops` RF hops (0 = direct only), once per node. `{enabled, within_hops, reply_via (dm\|channel), channel, message (template)}`. A DM greeting rides the keyed channel the newcomer was last heard on (fallback: `channel`, then the first keyed channel). |
 | `tx.auto_responder.spam_nudge` | disabled | Politely DM a node once when it repeats the same short message `threshold` times within `window_minutes` (a stuck tester spamming the mesh), then stay silent for `cooldown_minutes` per node so the nudge never becomes spam. `{enabled, threshold (6), window_minutes (10), cooldown_minutes (60), message (template: {short} {name} {count} {msg})}`. Sent as a DM on the transport the node was last heard on, through the armed `tx_outbox`. |
-| `tx.admin_scanner` | disabled | Remote-admin scanner: probe recently-heard nodes for admin access via the station node; administrable nodes are kept in the persistent `remote_admin` table. `{enabled, interval_hours (retry non-answering nodes), max_per_run, max_active_age_hours, reconfirm_hours (re-verify confirmed nodes; 0 = never)}`. |
+| `tx.admin_scanner` | disabled | Remote-admin scanner: probe recently-heard nodes for admin access via the station node; administrable nodes are kept in the persistent `remote_admin` table. `{enabled, interval_hours (retry non-answering nodes), max_per_run, max_active_age_hours, reconfirm_hours (re-verify confirmed nodes; 0 = never), owned_only (only probe claimed/owned nodes; default on)}`. |
 | `tx.canned_messages[]` | `[]` | Quick messages shown as one-tap buttons in the Messages compose box. |
 | `tx.auto_traceroute.enabled` | `false` | Automatically traceroute active nodes with missing/stale routes. |
 | `tx.auto_traceroute.send_every_minutes` | `5` | How often to emit a traceroute batch. Never emits while one is still queued (no stacking). |
@@ -433,7 +433,7 @@ on its slow loop; the install script can turn announce on with an interactive pr
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `registry.announce.enabled` | `false` | When true, this instance periodically reports itself to `registry.announce.hub_url`. |
-| `registry.announce.hub_url` | `https://hopwatch.nwimesh.net` | Hub to report to. Point it at any instance running as a hub. No trailing slash needed. |
+| `registry.announce.hub_url` | `https://hopwatch.example.com` | Hub to report to. Point it at any instance running as a hub. No trailing slash needed. |
 | `registry.announce.name` | `""` | Display name to report. Empty falls back to `server.ui.brand_name`. |
 | `registry.announce.public_url` | `""` | Public URL to report. Empty falls back to `server.public_url`. |
 | `registry.announce.interval_minutes` | `360` | Heartbeat cadence (minutes). The worker self-throttles to this even though the slow loop runs more often. |

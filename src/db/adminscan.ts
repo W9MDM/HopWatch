@@ -62,10 +62,13 @@ export async function forgetRemoteAdmin(nodeId: number): Promise<void> {
  * newly-authorized ones). Nodes that already answered (administrable) are NOT re-probed unless
  * reconfirmHours > 0, and then only after that long (to refresh firmware / catch revoked access).
  */
-export function scanCandidates(limit: number, staleHours: number, activeHours: number, reconfirmHours: number): Promise<{ node_id: number }[]> {
+export function scanCandidates(limit: number, staleHours: number, activeHours: number, reconfirmHours: number, ownedOnly: boolean): Promise<{ node_id: number }[]> {
+  // When ownedOnly, inner-join owned_node so only claimed nodes (num_id present) are probed.
+  const ownedJoin = ownedOnly ? "JOIN owned_node o ON o.num_id = r.from_node_id" : "";
   return query<{ node_id: number }>(
     `SELECT DISTINCT r.from_node_id AS node_id
      FROM receptions r
+     ${ownedJoin}
      LEFT JOIN remote_admin ra ON ra.node_id = r.from_node_id
      WHERE r.rx_time >= (UTC_TIMESTAMP() - INTERVAL ? HOUR)
        AND (
