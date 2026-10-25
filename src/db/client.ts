@@ -25,6 +25,15 @@ export function getPool(): mysql.Pool {
     // DATETIME columns are UTC; disable driver tz translation and treat as strings.
     timezone: "Z",
     dateStrings: true,
+    // JSON columns come back as raw strings, not pre-parsed objects. MariaDB stores JSON as
+    // LONGTEXT, and mysql2 >= 3.23 auto-parses any column it detects as JSON, returning a JS
+    // array/object. This whole codebase was written against the older behavior and JSON.parse()s
+    // these columns itself (topics, forward_rule targets/channels/events, route, evidence, ...),
+    // so auto-parsing fed JSON.parse an already-parsed value: it threw and the catch swallowed it
+    // to an empty default. That silently emptied every broker's subscribe topics on restart and
+    // took MQTT ingest to zero. Keeping JSON as strings restores the one representation the code
+    // expects everywhere.
+    jsonStrings: true,
     supportBigNumbers: true,
     bigNumberStrings: false,
     ssl: m.tls.enabled

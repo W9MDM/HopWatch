@@ -274,6 +274,21 @@ const ingest = z
         max_lon: z.number().default(0),
       })
       .default({}),
+    // Self-healing broker watchdog. A broker can report connected while silently delivering
+    // nothing (a wedged socket, a subscription lost after a server-side change). mqtt.js only
+    // reconnects when the socket actually closes, so this state can persist until a manual
+    // restart. The watchdog notices a connected broker that has gone quiet past stall_seconds
+    // and forces a fresh connection so it re-subscribes, then (notify_on_heal) posts a heads-up
+    // through the configured forwarding targets so the heal does not go unnoticed. Defaults suit
+    // a busy regional mesh; raise stall_seconds for a broker that is legitimately idle for long
+    // stretches, or disable it entirely.
+    watchdog: z
+      .object({
+        enabled: z.boolean().default(true),
+        stall_seconds: z.number().int().min(30).default(300),
+        notify_on_heal: z.boolean().default(true),
+      })
+      .default({}),
   });
 
 const alertRule = z

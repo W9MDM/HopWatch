@@ -13,7 +13,8 @@ import { toMysqlUtc } from "../lib/time.ts";
 import { parseTopic } from "../meshtastic/topic.ts";
 import { decodeProtobufEnvelope, decodeJsonEnvelope, DecodeError, type ChannelKey } from "../meshtastic/decode.ts";
 import type { NormalizedEnvelope } from "../meshtastic/types.ts";
-import { seedIngestConfig, getRuntimeBrokers, getChannelKeys, configFingerprint } from "../db/settings.ts";
+import { seedIngestConfig, getRuntimeBrokers, getChannelKeys, configFingerprint, listForwardRules } from "../db/settings.ts";
+import { notify } from "../worker/apprise.ts";
 import { secretDecryptFailures } from "../lib/secrets.ts";
 import { installRestartWatcher } from "../lib/servicecontrol.ts";
 import { DedupCache, fidelityRank, RANK_RF } from "./dedup.ts";
@@ -68,6 +69,10 @@ async function main(): Promise<void> {
   let lastFingerprint = -1;
   let lastBrokerSig = "";
   let bridge: BridgeCfg | null = null;
+  // Current broker runtime configs (set by reload), so the watchdog can rebuild a stalled
+  // connector, plus the last time each broker was healed, to avoid thrashing a flapping one.
+  let lastBrokers: Awaited<ReturnType<typeof getRuntimeBrokers>> = [];
+  const healedAt = new Map<string, number>();
   // Loop guard for the bridge: forward a given (from:packetId) at most once per window.
   const bridgeSeen = new DedupCache(5 * 60 * 1000);
 
@@ -152,6 +157,16 @@ async function main(): Promise<void> {
     batch.enqueue(env, { brokerId: "node", rawTopic: "rf", windowSeconds: window, transport: "rf" });
   };
 
+  // Build and start one broker connector, wiring its message handler to look itself up so
+  // countMalformed targets the live instance. Shared by reload and the self-healing watchdog.
+  const makeConnector = (brokerCfg: Awaited<ReturnType<typeof getRuntimeBrokers>>[number]): BrokerConnector => {
+    let self: BrokerConnector;
+    const connector = new BrokerConnector(brokerCfg, makeHandler(brokerCfg.id, () => self));
+    self = connector;
+    connector.start();
+    return connector;
+  };
+
     // Only broker connection parameters require a connector restart. Channel keys, the idempotency
     // window, tolerate-malformed, and the bridge config are all read live via closures, so they are
     // refreshed in place without dropping any MQTT connection (dropping one at QoS 0 loses every
@@ -168,18 +183,12 @@ async function main(): Promise<void> {
       nodeCfg = eff.node as { host: string; port: number; rx_enabled: boolean };
     } catch { bridge = null; }
     const brokers = await getRuntimeBrokers();
+    lastBrokers = brokers; // keep the live cfg so the watchdog can rebuild a stalled connector
     const brokerSig = JSON.stringify(brokers);
     if (brokerSig !== lastBrokerSig) {
       lastBrokerSig = brokerSig;
       await Promise.all(connectors.map((c) => c.stop()));
-      connectors = [];
-      for (const brokerCfg of brokers) {
-        let self: BrokerConnector;
-        const connector = new BrokerConnector(brokerCfg, makeHandler(brokerCfg.id, () => self));
-        self = connector;
-        connector.start();
-        connectors.push(connector);
-      }
+      connectors = brokers.map(makeConnector);
       console.log(`[ingest] broker connections (re)started (${brokers.length})`);
     }
     // Station-node RF receive: start/stop/reconnect based on config. Recreate on host/port change.
@@ -197,6 +206,52 @@ async function main(): Promise<void> {
     // symptom would be silent: a broker that will not authenticate, or a channel that decodes nothing.
     const badSecrets = secretDecryptFailures();
     console.log(`[ingest] active brokers: ${brokers.map((b) => b.id).join(", ") || "(none configured)"}; ${keys.length} channel key(s); RF node: ${wantRx ? nodeCfg!.host : "off"}${badSecrets.length ? `; ${badSecrets.length} UNREADABLE secret(s): ${badSecrets.join(", ")} (master key changed? re-enter in /admin/settings)` : ""}`);
+  }
+
+  // Self-healing watchdog: force a fresh connection for any broker that reports connected but has
+  // delivered nothing for longer than the configured stall window. mqtt.js reconnects on a real
+  // socket close, but not when a connection stays open yet silent (a lost subscription, a wedged
+  // stream), so without this a stalled broker needs a manual restart.
+  async function runWatchdog(): Promise<void> {
+    let eff;
+    try { eff = await effectiveConfig(); } catch { return; } // settings unreadable this tick; retry next
+    const wd = eff.ingest.watchdog;
+    if (!wd.enabled) return;
+    const now = Date.now();
+    const stallMs = wd.stall_seconds * 1000;
+    for (let i = 0; i < connectors.length; i++) {
+      const c = connectors[i];
+      if (!c) continue;
+      const s = c.state;
+      if (!s.connected) continue; // genuinely down: mqtt.js is already reconnecting on its own
+      const since = s.lastMessageAt ?? s.connectedAt;
+      if (since == null || now - since < stallMs) continue; // still inside the quiet window
+      if (now - (healedAt.get(c.id) ?? 0) < stallMs) continue; // healed recently; give it a window
+      const cfg = lastBrokers.find((b) => b.id === c.id);
+      if (!cfg) continue; // broker was removed from config; the next reload will drop the connector
+      healedAt.set(c.id, now);
+      const quietS = Math.round((now - since) / 1000);
+      console.warn(`[watchdog] broker ${c.id} connected but silent ${quietS}s (>= ${wd.stall_seconds}s); forcing reconnect`);
+      await c.stop().catch(() => {});
+      connectors[i] = makeConnector(cfg);
+      if (wd.notify_on_heal) void alertHeal(c.id, quietS);
+    }
+  }
+
+  // Best-effort heads-up through the configured forwarding targets, so a self-heal is visible to
+  // the operator rather than buried in the journal. Never throws back into the watchdog loop.
+  async function alertHeal(brokerId: string, quietS: number): Promise<void> {
+    try {
+      const rules = await listForwardRules(true);
+      const targets = [...new Set(rules.flatMap((r) => r.targets))];
+      if (targets.length === 0) return;
+      await notify(targets, {
+        title: "HopWatch watchdog",
+        body: `Broker "${brokerId}" was connected but silent for ${quietS}s; forced a reconnect to restore ingest.`,
+      });
+    } catch (e) {
+      console.error(`[watchdog] heal alert failed: ${(e as Error).message}`);
+    }
   }
 
   await reload();
@@ -227,10 +282,15 @@ async function main(): Promise<void> {
   // reports into the same table under broker_id "node" so the web process can show its state.
   const healthTimer = setInterval(() => { flushHealth(connectors).catch(() => {}); flushBrokerSys(connectors).catch(() => {}); flushMqttClients(connectors).catch(() => {}); flushNodeHealth(nodeRx).catch(() => {}); void flushTopics(); }, 15_000);
 
+  // Self-healing broker watchdog tick. Fixed 30s cadence; the stall threshold itself is the tunable
+  // (ingest.watchdog.stall_seconds), read live each tick so admin edits apply without a restart.
+  const watchdogTimer = setInterval(() => { void runWatchdog(); }, 30_000);
+
   const shutdown = async () => {
     console.log("[ingest] shutting down…");
     clearInterval(reloadTimer);
     clearInterval(healthTimer);
+    clearInterval(watchdogTimer);
     await Promise.all(connectors.map((c) => c.stop()));
     if (nodeRx) await nodeRx.stop();
     // drain(), not flush(): flush() returns immediately when one is already in flight, so shutdown

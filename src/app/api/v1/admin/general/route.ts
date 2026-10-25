@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     analytics: { enabled: an.enabled, measurement_id: an.measurement_id, client: an.client, server: an.server, has_api_secret: !!an.api_secret },
     updates: { enabled: cfg.server.updates.enabled, github_repo: cfg.server.updates.github_repo },
     geo_fence: cfg.ingest.geo_fence,
+    watchdog: cfg.ingest.watchdog,
     map_max_age: cfg.server.ui.map_max_age,
     map_center: cfg.server.ui.map_center,
     social_links: cfg.server.ui.social_links,
@@ -97,6 +98,11 @@ export async function POST(req: NextRequest) {
         enabled: !!b.geo_fence?.enabled,
         min_lat: coord(b.geo_fence?.min_lat, 90), max_lat: coord(b.geo_fence?.max_lat, 90),
         min_lon: coord(b.geo_fence?.min_lon, 180), max_lon: coord(b.geo_fence?.max_lon, 180),
+      },
+      watchdog: {
+        enabled: b.watchdog?.enabled !== false, // default on
+        stall_seconds: num(b.watchdog?.stall_seconds, 300, 30, 86400),
+        notify_on_heal: b.watchdog?.notify_on_heal !== false, // default on
       },
     },
     server: {

@@ -20,6 +20,10 @@ export interface BrokerSysStats {
 
 export interface BrokerState {
   connected: boolean;
+  // When the current connection was established (ms epoch), or null while disconnected. The
+  // watchdog measures "silent since" from here when a broker has connected but never delivered a
+  // message, so a broker that connects and then goes mute is still caught.
+  connectedAt: number | null;
   lastMessageAt: number | null;
   messages: number;
   malformed: number;
@@ -47,7 +51,7 @@ export type MessageHandler = (topic: string, payload: Buffer) => void | Promise<
 /** One MQTT connection per configured broker, with reconnect + health tracking. */
 export class BrokerConnector {
   readonly state: BrokerState = {
-    connected: false, lastMessageAt: null, messages: 0, malformed: 0, reconnects: 0,
+    connected: false, connectedAt: null, lastMessageAt: null, messages: 0, malformed: 0, reconnects: 0,
     sys: { clientsConnected: null, clientsActive: null, clientsTotal: null, clientsDisconnected: null,
            uptimeS: null, version: null, msgsReceived: null, msgsSent: null, updatedAt: null },
   };
@@ -91,6 +95,7 @@ export class BrokerConnector {
 
     this.client.on("connect", () => {
       this.state.connected = true;
+      this.state.connectedAt = Date.now();
       for (const topic of this.cfg.topics) {
         this.client!.subscribe(topic, { qos: this.cfg.qos }, (err) => {
           if (err) console.error(`[broker:${this.id}] subscribe ${topic} failed: ${err.message}`);
@@ -119,6 +124,7 @@ export class BrokerConnector {
     });
     this.client.on("close", () => {
       this.state.connected = false;
+      this.state.connectedAt = null;
     });
     this.client.on("error", (e) => console.error(`[broker:${this.id}] error: ${e.message}`));
   }
