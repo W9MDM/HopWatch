@@ -1,8 +1,9 @@
 // Read-side queries for the web/API. Dashboard counters come from rollups, never
 // full-table scans (spec §3). All reads go through the shared pool.
 import { query, clampLimit } from "./client.ts";
-import { toMysqlUtc } from "../lib/time.ts";
+import { toMysqlUtc, localDayStartUtc } from "../lib/time.ts";
 import { haversineKm } from "../lib/geo.ts";
+import { networkCondition } from "../lib/condition.ts";
 import type { UptimePoint } from "../lib/uptime.ts";
 
 export interface PacketFilter {
@@ -327,6 +328,108 @@ export async function getDashboard(): Promise<DashboardData> {
     newNodes7d: Number(nn7?.c ?? 0),
     newNodes24h: Number(nn1?.c ?? 0),
     brokers,
+  };
+}
+
+export interface PublicStats {
+  health: {
+    score: number | null;
+    label: string;
+    utilization: number | null;
+    delivery_ratio: number | null;
+    gateway_coverage: number | null;
+    active_node_trend: number | null;
+    anomalies: number;
+  };
+  nodes: { active_24h: number; active_48h: number; known: number; new_7d: number; new_24h: number; with_public_key: number };
+  gateways: { count: number; direct_pairs: number };
+  traffic: {
+    receptions_24h: number; packets_24h: number; packets_per_hr_48h: number;
+    channel_util_48h_pct: number; direct: number; relayed: number; text_messages_today: number;
+  };
+  brokers: { name: string; up: boolean; messages: number; malformed: number }[];
+}
+
+/** Count of unresolved anomaly flags (public-key spoof detections): the raw input behind the health
+ * score's "anomalies" factor. The public API reports this count (0 = clean), not the sub-score. */
+export async function unresolvedAnomalyCount(): Promise<number> {
+  const [r] = await query<{ c: number }>(
+    `SELECT COUNT(*) c FROM node_flags WHERE flag_type='spoof_pubkey' AND resolved_at IS NULL`,
+  );
+  return Number(r?.c ?? 0);
+}
+
+/** Direct vs relayed RF receptions over a rolling window, matching the dashboard spectrum stats. */
+export async function receptionDirectRelayed(hours = 24): Promise<{ direct: number; relayed: number }> {
+  const [r] = await query<{ direct: number; relayed: number }>(
+    `SELECT SUM(reception_class IN ('rf_direct','rf_direct_low_conf')) AS direct,
+            SUM(reception_class = 'rf_relayed') AS relayed
+       FROM receptions
+      WHERE rx_time >= (UTC_TIMESTAMP() - INTERVAL ? HOUR)
+        AND reception_class IN ('rf_direct','rf_direct_low_conf','rf_relayed')`,
+    [hours],
+  );
+  return { direct: Number(r?.direct ?? 0), relayed: Number(r?.relayed ?? 0) };
+}
+
+/**
+ * Aggregate numbers for the public read-only stats API (/api/v1/stats). Every field mirrors a value
+ * already shown on the dashboard, computed from the same queries so the two never disagree. Contains
+ * only aggregates: no node ids/names/positions, no message text, no public keys, no broker secrets.
+ * `zone` is server.local_timezone, so "text messages today" means the same day the dashboard shows.
+ */
+export async function getPublicStats(zone: string): Promise<PublicStats> {
+  const [dash, snap, pki, texts, split, anomalies] = await Promise.all([
+    getDashboard(),
+    getHealthSnapshot(),
+    pkiAdoption(),
+    getTextStats(localDayStartUtc(zone), 1),
+    receptionDirectRelayed(24),
+    unresolvedAnomalyCount(),
+  ]);
+
+  const inputs = (snap?.breakdown?.inputs ?? {}) as Record<string, number | null | undefined>;
+  // Sub-scores are stored normalized 0..1; the dashboard renders them as 0..100. A factor with no
+  // evidence is null (skipped), reported as null rather than a misleading 0.
+  const pct = (v: number | null | undefined): number | null => (v === null || v === undefined ? null : Math.round(Number(v) * 100));
+  const ageMin = snap?.computed_at ? (Date.now() - new Date(snap.computed_at.replace(" ", "T") + "Z").getTime()) / 60000 : null;
+  const latest = (dash.latestHour ?? {}) as Record<string, unknown>;
+  const round1 = (v: unknown): number => Math.round(Number(v ?? 0) * 10) / 10;
+
+  return {
+    health: {
+      score: snap?.score ?? null,
+      label: networkCondition(snap?.score ?? null, ageMin).label,
+      utilization: pct(inputs.utilization),
+      delivery_ratio: pct(inputs.delivery_ratio),
+      gateway_coverage: pct(inputs.gateway_coverage),
+      active_node_trend: pct(inputs.active_node_trend),
+      anomalies,
+    },
+    nodes: {
+      active_24h: dash.activeNodes24h,
+      active_48h: Number(latest.active_nodes ?? 0),
+      known: dash.totalNodes,
+      new_7d: dash.newNodes7d,
+      new_24h: dash.newNodes24h,
+      with_public_key: pki.with_key,
+    },
+    gateways: { count: dash.gateways, direct_pairs: dash.directPairs },
+    traffic: {
+      receptions_24h: dash.receptions24h,
+      packets_24h: dash.packets24h,
+      packets_per_hr_48h: Number(latest.total_packets ?? 0),
+      channel_util_48h_pct: round1(latest.avg_chan_util),
+      direct: split.direct,
+      relayed: split.relayed,
+      text_messages_today: texts.total,
+    },
+    brokers: dash.brokers.map((b) => ({
+      name: b.broker_id,
+      up: !!b.connected,
+      messages: Number(b.messages),
+      malformed: Number(b.malformed),
+    })),
   };
 }
 

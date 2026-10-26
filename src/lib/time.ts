@@ -52,3 +52,18 @@ export function dedupLookupRange(rxTime: Date, windowSeconds: number): { from: D
 export function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86_400_000);
 }
+
+/** UTC instant of the start of "today" in the given IANA zone (uses the current offset). Used for
+ * "today" windows the UI renders in server.local_timezone, so the dashboard and the public API agree
+ * on what "today" means. Falls back to "24h ago" if the zone is unusable. */
+export function localDayStartUtc(zone: string): Date {
+  const now = new Date();
+  try {
+    const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).split("-").map(Number);
+    const utcNow = new Date(now.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+    const locNow = new Date(now.toLocaleString("en-US", { timeZone: zone })).getTime();
+    return new Date(Date.UTC(y!, m! - 1, d!, 0, 0, 0) - (locNow - utcNow));
+  } catch {
+    return new Date(now.getTime() - 24 * 3600 * 1000);
+  }
+}

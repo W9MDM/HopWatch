@@ -214,6 +214,23 @@ Rule types and their required fields: `node_offline` (`threshold_minutes`), `bat
 (`threshold_volts`), `gateway_silent` (`threshold_minutes`), `channel_util` (`threshold_pct`),
 `battery_forecast` (`days_ahead`), `spoof_flag`, `new_node`.
 
+## api
+
+The public read-only JSON stats API (`GET /api/v1/stats`), for external pollers such as Home
+Assistant.
+
+| Key | Default | Description |
+|---|---|---|
+| `api.public_stats.enabled` | `true` | Serve `/api/v1/stats`. When off, the endpoint returns 404. Managed in `/admin/settings` -> General -> Public stats API. |
+| `api.public_stats.cache_seconds` | `60` | How long one computed snapshot is reused before the next request rebuilds it. Polling cannot hit the DB more often than this regardless of client count. Min 10, max 3600. Sent as `Cache-Control: public, max-age=<this>`. |
+| `api.public_stats.rate_limit_per_min` | `30` | Per-IP request budget per minute. Over the limit returns HTTP 429 with `Retry-After`. Min 1, max 6000. |
+
+`/api/v1/stats` is a stable contract: `schema_version` is `1`, and fields are only added, never
+renamed or removed. It returns aggregates only (`health`, `nodes`, `gateways`, `traffic`, `brokers`) -
+the same data class the public `/metrics` endpoint exposes - with no node names/ids, positions,
+message text, public keys, or broker secrets. It sends `ETag`/`Last-Modified` (honors `If-None-Match`
+with a 304) and accepts `?pretty=1` for indented output.
+
 ## livemap
 
 | Key | Default | Description |

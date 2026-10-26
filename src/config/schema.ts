@@ -395,6 +395,20 @@ export const configSchema = z.object({
   ingest: ingest,
   analytics: analytics,
   alerts: alerts,
+  // Public read-only JSON API (/api/v1/stats). Aggregate numbers only, the same data class the
+  // public Prometheus /metrics endpoint already exposes. DB-backed toggle + cache + rate limit per
+  // Rule 1 (no env). No auth, no per-node detail, no names/positions/message text, no secrets.
+  api: z
+    .object({
+      public_stats: z
+        .object({
+          enabled: z.boolean().default(true),
+          cache_seconds: z.number().int().min(10).max(3600).default(60),
+          rate_limit_per_min: z.number().int().min(1).max(6000).default(30),
+        })
+        .default({}),
+    })
+    .default({}),
   // Phase 4+ blocks are accepted now (off by default) so config need not change later.
   livemap: z
     .object({

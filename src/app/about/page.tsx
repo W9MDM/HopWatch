@@ -10,10 +10,12 @@ export const metadata = { title: "About" };
 export default async function AboutPage() {
   let brand = "HopWatch";
   let links = { website: "", discord: "", facebook: "" };
+  let apiEnabled = false;
   try {
     const cfg = await effectiveConfig();
     brand = cfg.server.ui.brand_name || "HopWatch";
     links = cfg.server.ui.social_links;
+    apiEnabled = cfg.api.public_stats.enabled;
   } catch { /* defaults */ }
   const anyLink = links.website || links.discord || links.facebook;
 
@@ -66,6 +68,19 @@ export default async function AboutPage() {
           <p className="text-[12px] text-ink-faint">Community links can be set by an admin in Settings.</p>
         )}
       </section>
+
+      {apiEnabled && (
+        <section className="card space-y-2">
+          <h2 className="eyebrow"><span className="eyebrow-bar" />Public data (for developers)</h2>
+          <p className="text-[13px] leading-relaxed text-ink-mute">
+            The network's aggregate numbers are available as read-only JSON at{" "}
+            <a href="/api/v1/stats" className="text-accent hover:underline mono">/api/v1/stats</a> (add{" "}
+            <span className="mono">?pretty=1</span> to read it in a browser). It is cached and rate-limited,
+            carries only aggregate counts (no node names, positions, or message text), and is meant for
+            dashboards and home-automation pollers such as Home Assistant.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

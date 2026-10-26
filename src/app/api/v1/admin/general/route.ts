@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
     updates: { enabled: cfg.server.updates.enabled, github_repo: cfg.server.updates.github_repo },
     geo_fence: cfg.ingest.geo_fence,
     watchdog: cfg.ingest.watchdog,
+    api_public_stats: cfg.api.public_stats,
     map_max_age: cfg.server.ui.map_max_age,
     map_center: cfg.server.ui.map_center,
     social_links: cfg.server.ui.social_links,
@@ -171,6 +172,13 @@ export async function POST(req: NextRequest) {
       exclude_mobile_gateways: b.wardrive?.exclude_mobile_gateways !== false, // default on
       mobile_span_deg: num(b.wardrive?.mobile_span_deg, 0.2, 0.01, 90),
       mobile_min_fixes: num(b.wardrive?.mobile_min_fixes, 4, 1, 100000),
+    },
+    api: {
+      public_stats: {
+        enabled: b.api_public_stats?.enabled !== false, // default on (matches the public /metrics posture)
+        cache_seconds: num(b.api_public_stats?.cache_seconds, 60, 10, 3600),
+        rate_limit_per_min: num(b.api_public_stats?.rate_limit_per_min, 30, 1, 6000),
+      },
     },
   };
   try {

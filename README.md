@@ -395,6 +395,17 @@ more). Also `/api/version`,
 `server.metrics_public`, or restrict at the network
 layer).
 
+`GET /api/v1/stats` is a public, read-only JSON endpoint of the aggregate numbers shown on the
+dashboard, for external pollers such as Home Assistant. It needs no auth and returns aggregates only
+(`schema_version`, `generated_at`, `health`, `nodes`, `gateways`, `traffic`, `brokers`): no node
+names/ids, positions, message text, public keys, or broker secrets, the same data class `/metrics`
+already exposes. It is a stable contract (fields are only added, never renamed/removed, under
+`schema_version`), sends `Cache-Control`/`ETag`/`Last-Modified` (supports conditional `If-None-Match`
+304s), and takes `?pretty=1` for indented output. The response is cached server-side and rate-limited
+per IP (429 with `Retry-After` when exceeded). It is governed by `api.public_stats` (enable, cache
+seconds, per-IP rate limit) in `/admin/settings` -> General -> Public stats API; turn it off to remove
+the endpoint (returns 404 when disabled).
+
 ## Prerequisites
 
 - Node.js 22.6+ (24 recommended). No Docker is used.

@@ -13,6 +13,7 @@ export interface GeneralSettings {
   updates: { enabled: boolean; github_repo: string };
   geo_fence: { enabled: boolean; min_lat: number; max_lat: number; min_lon: number; max_lon: number };
   watchdog: { enabled: boolean; stall_seconds: number; notify_on_heal: boolean };
+  api_public_stats: { enabled: boolean; cache_seconds: number; rate_limit_per_min: number };
   wardrive: { exclude_mobile_gateways: boolean; mobile_span_deg: number; mobile_min_fixes: number };
   retention: { raw_payload_days: number; decoded_packet_days: number; telemetry_days: number; reception_rollup_hour_days: number; live_events_minutes: number };
   features: { live_views: boolean; aprs_is_export: boolean; reference_sheet_pdf: boolean; ambience_mode: boolean };
@@ -45,6 +46,7 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
   const upd = <K extends keyof GeneralSettings["updates"]>(k: K, v: GeneralSettings["updates"][K]) => setS({ ...s, updates: { ...s.updates, [k]: v } });
   const gf = <K extends keyof GeneralSettings["geo_fence"]>(k: K, v: GeneralSettings["geo_fence"][K]) => setS({ ...s, geo_fence: { ...s.geo_fence, [k]: v } });
   const wdog = <K extends keyof GeneralSettings["watchdog"]>(k: K, v: GeneralSettings["watchdog"][K]) => setS({ ...s, watchdog: { ...s.watchdog, [k]: v } });
+  const aps = <K extends keyof GeneralSettings["api_public_stats"]>(k: K, v: GeneralSettings["api_public_stats"][K]) => setS({ ...s, api_public_stats: { ...s.api_public_stats, [k]: v } });
   const wd = <K extends keyof GeneralSettings["wardrive"]>(k: K, v: GeneralSettings["wardrive"][K]) => setS({ ...s, wardrive: { ...s.wardrive, [k]: v } });
 
   function onIcon(file?: File) {
@@ -208,7 +210,17 @@ export function GeneralSettingsManager({ initial }: { initial: GeneralSettings }
           <label className="space-y-1"><span className="block stat-label">Stall threshold (sec)</span><input type="number" step="30" min="30" value={s.watchdog.stall_seconds} onChange={(e) => wdog("stall_seconds", Number(e.target.value))} className={`${inp} w-28`} /></label>
           <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.watchdog.notify_on_heal} onChange={(e) => wdog("notify_on_heal", e.target.checked)} /> Notify on heal</label>
         </div>
-        <p className="text-[11px] text-ink-faint">When on, a broker that reports connected but delivers no messages for longer than the stall threshold is force-reconnected so it re-subscribes, instead of sitting silently dead until a manual restart. Notify on heal posts a heads-up through the configured forwarding targets. Raise the threshold for a broker that is legitimately idle for long stretches.</p>
+        <p className="text-[11px] text-ink-faint">When on, a broker that reports connected but delivers no messages for longer than the stall threshold is force-reconnected so it re-subscribes, instead of sitting silently dead until a manual restart. Notify on heal posts a heads-up through the operational-alerts targets (Notifications settings). Raise the threshold for a broker that is legitimately idle for long stretches.</p>
+      </div>
+
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="stat-label">Public stats API</div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.api_public_stats.enabled} onChange={(e) => aps("enabled", e.target.checked)} /> Enable <span className="mono">/api/v1/stats</span></label>
+          <label className="space-y-1"><span className="block stat-label">Cache (sec)</span><input type="number" step="10" min="10" max="3600" value={s.api_public_stats.cache_seconds} onChange={(e) => aps("cache_seconds", Number(e.target.value))} className={`${inp} w-24`} /></label>
+          <label className="space-y-1"><span className="block stat-label">Rate limit (req/min/IP)</span><input type="number" step="1" min="1" max="6000" value={s.api_public_stats.rate_limit_per_min} onChange={(e) => aps("rate_limit_per_min", Number(e.target.value))} className={`${inp} w-28`} /></label>
+        </div>
+        <p className="text-[11px] text-ink-faint">A public, read-only JSON endpoint (<span className="mono">/api/v1/stats</span>) of aggregate dashboard numbers for external pollers like Home Assistant. Aggregates only: no node names, positions, message text, keys, or broker secrets (the same data class the public <span className="mono">/metrics</span> endpoint exposes). The response is cached server-side for the cache window and rate-limited per IP; over the limit returns 429. Turn this off to remove the endpoint entirely.</p>
       </div>
 
       <div className="space-y-2 border-t border-line pt-3">

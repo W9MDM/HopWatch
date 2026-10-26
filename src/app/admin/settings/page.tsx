@@ -123,6 +123,7 @@ export default async function AdminSettingsPage() {
       updates: { enabled: eff.server.updates.enabled, github_repo: eff.server.updates.github_repo },
       geo_fence: eff.ingest.geo_fence,
       watchdog: eff.ingest.watchdog,
+      api_public_stats: eff.api.public_stats,
       retention: eff.retention,
       features: eff.features,
       livemap: eff.livemap,

@@ -6,19 +6,7 @@ import { fmtNum, fmtAge } from "../lib/format.ts";
 import { formatNodeId } from "../meshtastic/types.ts";
 import { effectiveConfig } from "../db/appsettings.ts";
 import { countInstances } from "../db/registry.ts";
-
-// UTC instant of the start of "today" in the given IANA zone (uses the current offset).
-function localDayStartUtc(zone: string): Date {
-  const now = new Date();
-  try {
-    const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).split("-").map(Number);
-    const utcNow = new Date(now.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-    const locNow = new Date(now.toLocaleString("en-US", { timeZone: zone })).getTime();
-    return new Date(Date.UTC(y!, m! - 1, d!, 0, 0, 0) - (locNow - utcNow));
-  } catch {
-    return new Date(now.getTime() - 24 * 3600 * 1000);
-  }
-}
+import { localDayStartUtc } from "../lib/time.ts";
 import { networkCondition, conditionTextClass } from "../lib/condition.ts";
 import { cn } from "../lib/cn.ts";
 import { DbError } from "../components/DbError.tsx";
