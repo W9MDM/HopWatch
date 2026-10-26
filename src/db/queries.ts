@@ -1329,6 +1329,14 @@ export async function listBridgeLog(limit = 100): Promise<BridgeLogRow[]> {
   );
 }
 
+/** Recent public text-feed publishes (bridge_log direction 'feed'), for the feed admin page. */
+export async function listFeedLog(limit = 100): Promise<BridgeLogRow[]> {
+  return query<BridgeLogRow>(
+    `SELECT id, bridged_at, direction, from_broker, to_broker, from_node_id, mesh_packet_id, channel_id, topic, dest_topic
+     FROM bridge_log WHERE direction = 'feed' ORDER BY bridged_at DESC LIMIT ${clampLimit(limit, 500)}`,
+  );
+}
+
 export interface FlagRow {
   flag_id: number; node_id: number; name: string | null; short_name: string | null; flag_type: string; severity: string;
   message: string; created_at: string; resolved_at: string | null; acknowledged_at: string | null;

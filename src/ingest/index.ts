@@ -104,6 +104,10 @@ async function main(): Promise<void> {
   };
 
   const makeHandler = (brokerId: string, get: () => BrokerConnector | undefined) => async (topic: string, payload: Buffer) => {
+    // Our own JSON sidecar feeds (the text feed) publish under <root>/hopwatch/...; a broker
+    // subscribed to a wide pattern (msh/#) echoes them back. They are not Meshtastic packets, so
+    // decoding them as protobuf would only inflate the malformed counter. Ignore them outright.
+    if (topic.includes("/hopwatch/")) return;
     const info = parseTopic(topic);
     try {
       let env;

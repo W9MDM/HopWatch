@@ -345,6 +345,31 @@ Forwards text messages between the local broker and peer brokers, gated by OK-to
 | `bridge.mqtt_to_rf` | `false` | RF cross-link: transmit MQTT-heard text onto RF, re-originated as HopWatch's own TX node via the armed `tx_outbox`. |
 | `bridge.patch_hold_seconds` | `20` | Wait before patching a message across; skip if it already reached the other transport on its own (prevents doubling). |
 
+## feed (public decoded-text JSON feed, off by default)
+
+Re-publishes public-channel text messages HopWatch has decoded as compact JSON to one MQTT broker,
+under `<root>/<topic_suffix>`, so downstream consumers (Home Assistant, dashboards) get the whole
+de-duplicated text feed without decrypting themselves. Like the bridge it republishes observed
+traffic, so it needs BOTH `enabled` (config) and `armed` (runtime kill switch): a fresh install
+publishes nothing until an admin turns it on. See `docs/bridge.md`. Managed in `/admin/bridge`.
+
+| Key | Default | Description |
+|---|---|---|
+| `feed.enabled` | `false` | Master switch. |
+| `feed.armed` | `false` | Runtime kill switch; nothing publishes until armed. |
+| `feed.broker_id` | `""` | Which configured ingest broker to publish to; its topic root is the publish target and the region scope. Empty = inert. |
+| `feed.topic_suffix` | `hopwatch/v1/text` | Appended to the broker's topic root: `<root>/hopwatch/v1/text`. A non-Meshtastic subtree, never re-injected onto RF. |
+| `feed.require_ok_to_mqtt` | `true` | Only publish messages whose sender set the OK-to-MQTT bit. |
+| `feed.public_only` | `true` | Only publish channels encrypted with the PUBLIC default key; never a private/community PSK, even one HopWatch can read. |
+| `feed.include_reactions` | `true` | Include tapback reactions (payload `emoji: true`). Off drops reaction packets. |
+| `feed.channels` | `[]` | Channel names to include; empty = all eligible public-key channels. |
+| `feed.max_text_chars` | `240` | Max UTF-8 chars of body to publish. |
+
+The published JSON is a stable add-only contract (`schema_version: 1`):
+`{schema_version, id, time, from, long_name, short_name, channel, text, hops, snr, rssi, gateway, reply_id, emoji}`.
+Only broadcasts (never DMs), QoS 0, not retained, de-duplicated by mesh packet id, and audited in
+`bridge_log` (direction `feed`, shown on `/admin/bridge`).
+
 ## node (optional station node, phase 2)
 
 Direct link to a local Meshtastic node, used when `tx.transport` is `node`.

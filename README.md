@@ -406,6 +406,14 @@ per IP (429 with `Retry-After` when exceeded). It is governed by `api.public_sta
 seconds, per-IP rate limit) in `/admin/settings` -> General -> Public stats API; turn it off to remove
 the endpoint (returns 404 when disabled).
 
+There is also an opt-in **public text feed** (`feed.*`, off by default, managed on `/admin/bridge`):
+when enabled and armed it re-publishes public-channel text messages HopWatch has decoded as compact
+JSON to one MQTT broker, under `<root>/hopwatch/v1/text`, so a consumer such as Home Assistant gets
+the whole de-duplicated feed without decrypting itself. It publishes broadcasts only (never DMs),
+public-default-key channels only (never a private PSK), honours each sender's OK-to-MQTT bit, and is
+QoS 0 and not retained. The payload is a stable add-only contract (`schema_version: 1`). See
+`docs/bridge.md`.
+
 ## Prerequisites
 
 - Node.js 22.6+ (24 recommended). No Docker is used.

@@ -123,3 +123,69 @@ reasonable choice for a PRIVATE broker you control (RF is public airwaves, and e
 club mesh may have agreed to full logging). It is NOT good citizenship on the public Meshtastic MQTT,
 where it exposes people who set the "don't MQTT me" bit precisely to avoid that. HopWatch never forges
 consent regardless, but the operator should point this at a private broker, not the public one.
+
+## Public text feed (JSON)
+
+A separate opt-in, off-by-default feature (`feed.*`, managed on the same `/admin/bridge` page) that
+re-publishes public-channel text messages HopWatch has decoded as compact JSON to one MQTT broker,
+so downstream consumers (Home Assistant, dashboards) get the whole de-duplicated feed without
+decrypting themselves. Unlike the federation bridge, which forwards the original encrypted
+`ServiceEnvelope` byte-for-byte, the feed publishes DECODED PLAINTEXT, so it is restricted to public
+channels and broadcasts only.
+
+- **Off until enabled AND armed.** It republishes observed traffic, so per Rule 2 it needs BOTH
+  `feed.enabled` (config) and `feed.armed` (runtime kill switch). A fresh install publishes nothing.
+  It is a JSON sidecar, not an RF transmit, so it does not go through `tx_outbox`.
+- **Public channels only.** `feed.public_only` (default true) publishes only channels whose key is
+  the PUBLIC default key (`AQ==` / the preset channels such as LongFast, LongTurbo). A
+  private/community PSK channel is never published, even one HopWatch can decrypt. It fails closed:
+  a channel whose key is unknown is treated as non-public.
+- **Broadcasts only, with consent.** Only channel broadcasts (`to == 0xffffffff`) are published,
+  never DMs. `feed.require_ok_to_mqtt` (default true) skips senders who did not set the OK-to-MQTT
+  bit, the same consent rule the bridge uses.
+- **Region-scoped.** `feed.broker_id` names the broker to publish to; its topic root is both the
+  publish namespace (`<root>/<topic_suffix>`, default `<root>/hopwatch/v1/text`) and the region
+  filter: only broadcasts whose source topic is under that root (plus the operator's own RF station
+  node) are published, not another region's firehose.
+- **One publish per message.** De-duplicated by mesh packet id across all brokers and the RF node
+  (the `text_message` table is already one row per logical packet); each is published at most once
+  on first sighting, QoS 0 and not retained. The text is capped at `feed.max_text_chars` (240).
+- **Audited.** Every publish is logged to `bridge_log` with direction `feed` and shown on
+  `/admin/bridge`.
+
+The payload is a stable add-only contract (`schema_version: 1`); new fields may be added but existing
+ones never change meaning or type without a version bump:
+
+```json
+{
+  "schema_version": 1,
+  "id": 305419896,
+  "time": "2026-10-26T15:04:05.123Z",
+  "from": "!abcd1234",
+  "long_name": "Node Long Name",
+  "short_name": "NODE",
+  "channel": "LongFast",
+  "text": "hello mesh",
+  "hops": 2,
+  "snr": 5.25,
+  "rssi": -96,
+  "gateway": "!deadbeef",
+  "reply_id": null,
+  "emoji": false
+}
+```
+
+`channel` is the on-air channel name (a default-key primary channel shows as its modem preset, e.g.
+`LongFast`), taken from the source MQTT topic; `hops` is `hop_start - hop_limit` (null when unknown);
+`snr`/`rssi`/`gateway` come from a representative reception (an RF-direct copy where one exists);
+`reply_id` is the packet id this message replies to (null if none); `emoji` is true for a tapback
+reaction.
+
+### Keeping the feed trustworthy on the broker
+
+Because the feed topic is where consumers learn "what HopWatch heard," nobody else should be able to
+publish to it. Set a broker ACL so the account your consumers use can SUBSCRIBE to
+`<root>/hopwatch/#` but NOT publish to it, and only HopWatch's own broker account can publish there.
+HopWatch publishes the feed under a non-Meshtastic subtree (`<root>/hopwatch/...`), and its ingest
+ignores that subtree, so a broker subscribed to a wide pattern (`msh/#`) will not try to re-ingest
+the feed it just published.

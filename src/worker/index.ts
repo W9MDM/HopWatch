@@ -47,6 +47,7 @@ function guardedInterval(ms: number, fn: () => Promise<void>): { timer: NodeJS.T
   return { timer: setInterval(run, ms), kick: run };
 }
 import { runMessagePatch } from "./patch.ts";
+import { runTextFeed } from "./textfeed.ts";
 import { runAutomations } from "./automations.ts";
 import { runAutoResponder, runWelcome } from "./autoresponder.ts";
 import { runSpamNudge } from "./spamnudge.ts";
@@ -171,6 +172,12 @@ async function main(): Promise<void> {
       await safe("bridge-patch", async () => {
         const p = await runMessagePatch(c, txTransports);
         if (p) console.log(`[worker] patched ${p} message(s) across RF<->MQTT`);
+      });
+      // Public decoded-text JSON feed (feed.*). Republishes public-channel text to one broker as
+      // JSON for downstream consumers. No-op unless feed.enabled AND feed.armed; never a TX.
+      await safe("text-feed", async () => {
+        const n = await runTextFeed(c, txTransports);
+        if (n) console.log(`[worker] published ${n} message(s) to the text feed`);
       });
       const n = await runTxOutbox(c, txTransports);
       if (n) console.log(`[worker] tx processed ${n} outbox row(s)`);

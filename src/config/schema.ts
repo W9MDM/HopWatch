@@ -681,6 +681,38 @@ export const configSchema = z.object({
       patch_hold_seconds: z.number().int().min(3).max(600).default(20),
     })
     .default({}),
+  // Public decoded-text JSON feed (opt-in, off by default). Re-publishes TEXT_MESSAGE_APP
+  // broadcasts that HopWatch decoded on a PUBLIC-default-key channel as compact JSON to one MQTT
+  // broker, so downstream consumers (Home Assistant, dashboards) get the de-duplicated text feed
+  // without decrypting themselves. Like the MQTT bridge this republishes observed traffic, so per
+  // Rule 2 it needs BOTH `enabled` (config) and `armed` (runtime kill switch): a fresh install
+  // publishes nothing until an admin turns it on. It honours each sender's OK-to-MQTT bit by
+  // default and never publishes a private/community-key channel, even one HopWatch can read.
+  feed: z
+    .object({
+      enabled: z.boolean().default(false),
+      armed: z.boolean().default(false),
+      // The configured ingest broker to publish to. Its topic root scopes the feed to that region
+      // (only messages on <root>/... or the RF station node are published) and the JSON lands at
+      // <root>/<topic_suffix>. Empty = the feed is inert (nowhere to publish, no region to scope to).
+      broker_id: z.string().default(""),
+      // Appended to the broker's topic root: <root>/hopwatch/v1/text. A non-Meshtastic subtree, so
+      // no firmware node treats it as mesh traffic; it is a JSON sidecar, never re-injected onto RF.
+      topic_suffix: z.string().default("hopwatch/v1/text"),
+      // Only republish senders who set the OK-to-MQTT bit (matches bridge.require_ok_to_mqtt).
+      // Turning it off republishes senders who opted out; only acceptable on a private broker.
+      require_ok_to_mqtt: z.boolean().default(true),
+      // Only republish channels encrypted with the PUBLIC default key (LongFast/LongTurbo/etc).
+      // Never a private/community PSK, even when HopWatch holds the key. Fails closed on unknowns.
+      public_only: z.boolean().default(true),
+      // Include tapback reactions (emoji flagged true in the payload). Off drops reaction packets.
+      include_reactions: z.boolean().default(true),
+      // Channel names to include. Empty = all eligible (public-key) text channels.
+      channels: z.array(z.string()).default([]),
+      // Max UTF-8 chars of body to publish (Meshtastic text is at most ~237 bytes anyway).
+      max_text_chars: z.number().int().min(1).max(512).default(240),
+    })
+    .default({}),
   // Optional station node (phase 2): direct TCP/HTTP link to a local Meshtastic node.
   node: z
     .object({
