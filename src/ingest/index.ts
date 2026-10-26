@@ -13,7 +13,7 @@ import { toMysqlUtc } from "../lib/time.ts";
 import { parseTopic } from "../meshtastic/topic.ts";
 import { decodeProtobufEnvelope, decodeJsonEnvelope, DecodeError, type ChannelKey } from "../meshtastic/decode.ts";
 import type { NormalizedEnvelope } from "../meshtastic/types.ts";
-import { seedIngestConfig, getRuntimeBrokers, getChannelKeys, configFingerprint, listForwardRules } from "../db/settings.ts";
+import { seedIngestConfig, getRuntimeBrokers, getChannelKeys, configFingerprint } from "../db/settings.ts";
 import { notify } from "../worker/apprise.ts";
 import { secretDecryptFailures } from "../lib/secrets.ts";
 import { installRestartWatcher } from "../lib/servicecontrol.ts";
@@ -238,12 +238,16 @@ async function main(): Promise<void> {
     }
   }
 
-  // Best-effort heads-up through the configured forwarding targets, so a self-heal is visible to
-  // the operator rather than buried in the journal. Never throws back into the watchdog loop.
+  // Best-effort heads-up through the admin notification targets (Notifications settings:
+  // alerts.delivery), NOT the message-forwarding targets. A self-heal is operational news for the
+  // operator, so it belongs in the admin/alerts channel and must never be broadcast to the
+  // community forward channel that relays mesh text. Sends nowhere (just logs) when no notification
+  // target is set, so a fresh install leaks no ops chatter. Never throws back into the watchdog loop.
   async function alertHeal(brokerId: string, quietS: number): Promise<void> {
     try {
-      const rules = await listForwardRules(true);
-      const targets = [...new Set(rules.flatMap((r) => r.targets))];
+      const eff = await effectiveConfig();
+      const d = eff.alerts.delivery;
+      const targets = [...new Set([...d.discord.webhooks, ...d.webhook, ...d.ntfy])].filter(Boolean);
       if (targets.length === 0) return;
       await notify(targets, {
         title: "HopWatch watchdog",
