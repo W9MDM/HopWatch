@@ -238,16 +238,20 @@ async function main(): Promise<void> {
     }
   }
 
-  // Best-effort heads-up through the admin notification targets (Notifications settings:
-  // alerts.delivery), NOT the message-forwarding targets. A self-heal is operational news for the
-  // operator, so it belongs in the admin/alerts channel and must never be broadcast to the
-  // community forward channel that relays mesh text. Sends nowhere (just logs) when no notification
-  // target is set, so a fresh install leaks no ops chatter. Never throws back into the watchdog loop.
+  // Best-effort heads-up through the dedicated operational-alerts targets (Notifications settings:
+  // alerts.ops), NOT the message-forwarding targets. A self-heal is operational news for the
+  // operator, so it belongs in the admin-only ops channel and must never be broadcast to the
+  // community forward channel that relays mesh text. When no ops target is configured we fall back
+  // to the general alert delivery targets (alerts.delivery) so the heads-up is not silently lost,
+  // and only to nothing (just logs) when neither is set. Never throws back into the watchdog loop.
   async function alertHeal(brokerId: string, quietS: number): Promise<void> {
     try {
       const eff = await effectiveConfig();
+      const ops = eff.alerts.ops;
+      const opsTargets = [...ops.discord_webhooks, ...ops.webhook, ...ops.ntfy];
       const d = eff.alerts.delivery;
-      const targets = [...new Set([...d.discord.webhooks, ...d.webhook, ...d.ntfy])].filter(Boolean);
+      const fallback = [...d.discord.webhooks, ...d.webhook, ...d.ntfy];
+      const targets = [...new Set((opsTargets.length > 0 ? opsTargets : fallback))].filter(Boolean);
       if (targets.length === 0) return;
       await notify(targets, {
         title: "HopWatch watchdog",

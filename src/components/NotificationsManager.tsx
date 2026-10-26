@@ -17,6 +17,7 @@ interface Init {
   webhook_count: number;
   ntfy_count: number;
   discord: { username: string; avatar_url: string; webhook_count: number };
+  ops: { discord_count: number; webhook_count: number; ntfy_count: number };
   rules: Rule[];
   digest: { enabled: boolean; time: string; channels: Channel[]; attach_ics: boolean };
 }
@@ -46,6 +47,12 @@ export function NotificationsManager({ initial }: { initial: Init }) {
   const [discordAvatar, setDiscordAvatar] = useState(initial.discord.avatar_url);
   const [discordHooks, setDiscordHooks] = useState("");
   const [clearDiscord, setClearDiscord] = useState(false);
+  const [opsDiscord, setOpsDiscord] = useState("");
+  const [opsWebhook, setOpsWebhook] = useState("");
+  const [opsNtfy, setOpsNtfy] = useState("");
+  const [clearOpsDiscord, setClearOpsDiscord] = useState(false);
+  const [clearOpsWebhook, setClearOpsWebhook] = useState(false);
+  const [clearOpsNtfy, setClearOpsNtfy] = useState(false);
   const [rules, setRules] = useState<Rule[]>(initial.rules);
   const [digest, setDigest] = useState(initial.digest);
   const [msg, setMsg] = useState<string | null>(null);
@@ -56,20 +63,28 @@ export function NotificationsManager({ initial }: { initial: Init }) {
     return list.includes(ch) ? list.filter((c) => c !== ch) : [...list, ch];
   }
 
-  async function save(testDiscord = false) {
+  async function save(test: "" | "discord" | "ops" = "") {
     setMsg(null);
     setError(null);
     setBusy(true);
+    const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
     const body = {
       smtp: { ...smtp, password: smtpPw },
-      webhook: webhook.split("\n").map((s) => s.trim()).filter(Boolean),
-      ntfy: ntfy.split("\n").map((s) => s.trim()).filter(Boolean),
+      webhook: lines(webhook),
+      ntfy: lines(ntfy),
       clear_webhook: clearWebhook,
       clear_ntfy: clearNtfy,
       discord: { username: discordUser, avatar_url: discordAvatar },
-      discord_webhooks: discordHooks.split("\n").map((s) => s.trim()).filter(Boolean),
+      discord_webhooks: lines(discordHooks),
       clear_discord: clearDiscord,
-      test_discord: testDiscord,
+      ops_discord_webhooks: lines(opsDiscord),
+      ops_webhook: lines(opsWebhook),
+      ops_ntfy: lines(opsNtfy),
+      clear_ops_discord: clearOpsDiscord,
+      clear_ops_webhook: clearOpsWebhook,
+      clear_ops_ntfy: clearOpsNtfy,
+      test_discord: test === "discord",
+      test_ops: test === "ops",
       rules,
       digest,
     };
@@ -82,7 +97,8 @@ export function NotificationsManager({ initial }: { initial: Init }) {
     if (res.ok) {
       const d = await res.json().catch(() => ({}));
       const testNote = d.test === "sent" ? " Test posted to Discord." : d.test ? ` Test: ${d.test}.` : "";
-      setMsg(`Saved. The worker picks up changes within about a minute.${testNote}`);
+      const opsNote = d.ops_test === "sent" ? " Test posted to the ops channel." : d.ops_test ? ` Ops test: ${d.ops_test}.` : "";
+      setMsg(`Saved. The worker picks up changes within about a minute.${testNote}${opsNote}`);
       setSmtpPw("");
       if (smtpPw) setSmtp({ ...smtp, has_password: true });
     } else {
@@ -159,7 +175,54 @@ export function NotificationsManager({ initial }: { initial: Init }) {
               <input type="checkbox" checked={clearDiscord} onChange={(e) => setClearDiscord(e.target.checked)} /> remove all stored Discord webhooks
             </span>
           )}
-          <button type="button" className="btn btn-outline h-8 px-3 text-[12px]" disabled={busy} onClick={() => save(true)}>Save &amp; send test post</button>
+          <button type="button" className="btn btn-outline h-8 px-3 text-[12px]" disabled={busy} onClick={() => save("discord")}>Save &amp; send test post</button>
+        </div>
+      </div>
+
+      {/* Operational alerts (admin channel) */}
+      <div>
+        <div className="stat-label mb-2">Operational alerts (admin channel)</div>
+        <p className="mb-2 text-[11px] text-ink-faint">
+          A separate, admin-only destination for HopWatch&apos;s own operational events (the ingest self-heal
+          watchdog today), kept out of the delivery targets above so ops chatter never reaches the community.
+          Make a private Discord channel, add a webhook to it (Channel &rarr; Edit &rarr; Integrations &rarr;
+          Webhooks), and paste its URL below. Leave these empty and operational alerts fall back to the delivery
+          targets above. All targets are encrypted at rest (Rule 6).
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <label className="space-y-1"><span className="stat-label">Discord webhook URLs (one per line)</span>
+            <textarea className="min-h-16 w-full rounded-md border border-line bg-raised px-3 py-2 text-[13px] font-mono text-ink focus:border-accent focus:outline-none"
+              placeholder={initial.ops.discord_count > 0 ? `${initial.ops.discord_count} stored (hidden); enter URLs to replace them` : "https://discord.com/api/webhooks/..."}
+              value={opsDiscord} onChange={(e) => setOpsDiscord(e.target.value)} />
+            {initial.ops.discord_count > 0 && (
+              <span className="flex items-center gap-2 text-[11px] text-ink-faint">
+                <input type="checkbox" checked={clearOpsDiscord} onChange={(e) => setClearOpsDiscord(e.target.checked)} /> remove all
+              </span>
+            )}
+          </label>
+          <label className="space-y-1"><span className="stat-label">Webhook URLs (one per line)</span>
+            <textarea className="min-h-16 w-full rounded-md border border-line bg-raised px-3 py-2 text-[13px] font-mono text-ink focus:border-accent focus:outline-none"
+              placeholder={initial.ops.webhook_count > 0 ? `${initial.ops.webhook_count} stored (hidden); enter URLs to replace them` : "https://..."}
+              value={opsWebhook} onChange={(e) => setOpsWebhook(e.target.value)} />
+            {initial.ops.webhook_count > 0 && (
+              <span className="flex items-center gap-2 text-[11px] text-ink-faint">
+                <input type="checkbox" checked={clearOpsWebhook} onChange={(e) => setClearOpsWebhook(e.target.checked)} /> remove all
+              </span>
+            )}
+          </label>
+          <label className="space-y-1"><span className="stat-label">ntfy topics or URLs (one per line)</span>
+            <textarea className="min-h-16 w-full rounded-md border border-line bg-raised px-3 py-2 text-[13px] font-mono text-ink focus:border-accent focus:outline-none"
+              placeholder={initial.ops.ntfy_count > 0 ? `${initial.ops.ntfy_count} stored (hidden); enter topics to replace them` : "mytopic"}
+              value={opsNtfy} onChange={(e) => setOpsNtfy(e.target.value)} />
+            {initial.ops.ntfy_count > 0 && (
+              <span className="flex items-center gap-2 text-[11px] text-ink-faint">
+                <input type="checkbox" checked={clearOpsNtfy} onChange={(e) => setClearOpsNtfy(e.target.checked)} /> remove all
+              </span>
+            )}
+          </label>
+        </div>
+        <div className="mt-2">
+          <button type="button" className="btn btn-outline h-8 px-3 text-[12px]" disabled={busy} onClick={() => save("ops")}>Save &amp; send test to ops channel</button>
         </div>
       </div>
 
@@ -223,7 +286,7 @@ export function NotificationsManager({ initial }: { initial: Init }) {
         </div>
       </div>
 
-      <button className="btn btn-primary h-9 px-4 text-[13px]" disabled={busy} onClick={() => save(false)}>Save notifications</button>
+      <button className="btn btn-primary h-9 px-4 text-[13px]" disabled={busy} onClick={() => save()}>Save notifications</button>
     </div>
   );
 }

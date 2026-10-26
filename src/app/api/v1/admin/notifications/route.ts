@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "../../../../../auth/guard.ts";
 import { effectiveConfig, saveOverrides } from "../../../../../db/appsettings.ts";
 import { sendDiscordWebhooks } from "../../../../../lib/discord.ts";
+import { notify } from "../../../../../worker/apprise.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,13 @@ export async function GET(req: NextRequest) {
       username: cfg.alerts.delivery.discord.username,
       avatar_url: cfg.alerts.delivery.discord.avatar_url,
       webhook_count: cfg.alerts.delivery.discord.webhooks.length,
+    },
+    // Dedicated operational-alerts channel (the ingest self-heal watchdog). Counts only, same
+    // Rule 6 reason as the delivery targets above: these URLs embed their own bearer tokens.
+    ops: {
+      discord_count: cfg.alerts.ops.discord_webhooks.length,
+      webhook_count: cfg.alerts.ops.webhook.length,
+      ntfy_count: cfg.alerts.ops.ntfy.length,
     },
     rules: cfg.alerts.rules,
     digest: cfg.digest,
@@ -52,7 +60,10 @@ export async function POST(req: NextRequest) {
   // never had the values to send back), a non-empty one replaces the list, and an explicit
   // clear_<channel> flag empties it. Without this, saving any unrelated notification setting would
   // have wiped every target, since the form could no longer echo them.
-  const targets = (key: "webhook" | "ntfy" | "discord_webhooks", clearKey: string): string[] | undefined => {
+  const targets = (
+    key: "webhook" | "ntfy" | "discord_webhooks" | "ops_discord_webhooks" | "ops_webhook" | "ops_ntfy",
+    clearKey: string,
+  ): string[] | undefined => {
     if (b[clearKey]) return [];
     const list = Array.isArray(b[key]) ? b[key].filter((x: unknown) => typeof x === "string" && x) : [];
     return list.length > 0 ? list : undefined;
@@ -73,9 +84,21 @@ export async function POST(req: NextRequest) {
   if (discordHooks !== undefined) discord.webhooks = discordHooks;
   delivery.discord = discord;
 
+  // Operational-alerts targets: a separate admin channel for HopWatch's own ops events (watchdog
+  // self-heals), kept out of the delivery targets that carry alert rules and the digest. Same
+  // keep/replace/clear semantics as above, and the same Rule 6 encryption (SECRET_PATHS).
+  const ops: Record<string, unknown> = {};
+  const opsDiscord = targets("ops_discord_webhooks", "clear_ops_discord");
+  const opsWebhook = targets("ops_webhook", "clear_ops_webhook");
+  const opsNtfy = targets("ops_ntfy", "clear_ops_ntfy");
+  if (opsDiscord !== undefined) ops.discord_webhooks = opsDiscord;
+  if (opsWebhook !== undefined) ops.webhook = opsWebhook;
+  if (opsNtfy !== undefined) ops.ntfy = opsNtfy;
+
   const patch = {
     alerts: {
       delivery,
+      ops,
       rules: Array.isArray(b.rules) ? b.rules : [],
     },
     digest: b.digest && typeof b.digest === "object" ? b.digest : {},
@@ -87,25 +110,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 
-  // Optional test post so the admin can confirm "send as" works before wiring it to any rule. Uses the
+  // Optional test posts so the admin can confirm each channel works before wiring it up. Uses the
   // freshly-saved (decrypted) config, so it also validates that the stored webhook is still good.
   let test: string | undefined;
-  if (b.test_discord) {
+  let ops_test: string | undefined;
+  if (b.test_discord || b.test_ops) {
     const fresh = await effectiveConfig();
-    const d = fresh.alerts.delivery.discord;
-    if (d.webhooks.length === 0) test = "no discord webhooks configured";
-    else {
-      try {
-        await sendDiscordWebhooks(
-          d.webhooks,
-          { title: "HopWatch test", body: `This is a test post from HopWatch, sent as **${d.username || "HopWatch"}**. If you can read this, alerts and the daily digest can post here.` },
-          { username: d.username, avatar_url: d.avatar_url },
-        );
-        test = "sent";
-      } catch (e) {
-        test = `error: ${(e as Error).message}`;
+    if (b.test_discord) {
+      const d = fresh.alerts.delivery.discord;
+      if (d.webhooks.length === 0) test = "no discord webhooks configured";
+      else {
+        try {
+          await sendDiscordWebhooks(
+            d.webhooks,
+            { title: "HopWatch test", body: `This is a test post from HopWatch, sent as **${d.username || "HopWatch"}**. If you can read this, alerts and the daily digest can post here.` },
+            { username: d.username, avatar_url: d.avatar_url },
+          );
+          test = "sent";
+        } catch (e) {
+          test = `error: ${(e as Error).message}`;
+        }
+      }
+    }
+    // The ops test posts through the same path the watchdog uses (notify), so a success here proves
+    // the real self-heal heads-up will land in this admin channel.
+    if (b.test_ops) {
+      const o = fresh.alerts.ops;
+      const opsTargets = [...o.discord_webhooks, ...o.webhook, ...o.ntfy].filter(Boolean);
+      if (opsTargets.length === 0) ops_test = "no operational targets configured";
+      else {
+        try {
+          await notify(opsTargets, {
+            title: "HopWatch watchdog",
+            body: "Test: operational alerts (watchdog self-heals) will post to this channel. If you can read this, the admin ops channel is wired correctly.",
+          });
+          ops_test = "sent";
+        } catch (e) {
+          ops_test = `error: ${(e as Error).message}`;
+        }
       }
     }
   }
-  return NextResponse.json({ ok: true, ...(test ? { test } : {}) });
+  return NextResponse.json({ ok: true, ...(test ? { test } : {}), ...(ops_test ? { ops_test } : {}) });
 }

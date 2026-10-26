@@ -155,7 +155,7 @@ unlike the webhook channel which overrides the name per message.
 | `ingest.geo_fence` | disabled | `{enabled, min_lat, max_lat, min_lon, max_lon}`. When enabled, the worker marks any node whose known position is outside this bounding box `position_ignored`, so a far-off region bridged in over MQTT stops polluting maps/coverage/graph. Hides (never deletes); only sets the flag, so it never undoes a manual ignore. Managed in `/admin/settings -> General -> Geo-fence`. |
 | `ingest.watchdog.enabled` | `true` | Self-healing broker watchdog in the ingest daemon. A broker can report connected while silently delivering nothing (a wedged socket, a lost subscription); mqtt.js only reconnects on a real socket close, so that state can persist until a manual restart. When on, the daemon force-reconnects any such broker so it re-subscribes. Managed in `/admin/settings -> General -> Ingest watchdog`. |
 | `ingest.watchdog.stall_seconds` | `300` | How long a connected broker may deliver no messages before the watchdog force-reconnects it. Measured from the last message, or from connect time if it has never delivered one. Raise it for a broker that is legitimately idle for long stretches. Min 30. Hot-reloads. |
-| `ingest.watchdog.notify_on_heal` | `true` | When a self-heal fires, post a heads-up (`"HopWatch watchdog"`) through the admin notification delivery targets (`alerts.delivery.discord.webhooks` / `webhook` / `ntfy`, set in `/admin/settings -> Notifications`), so the event is not buried in the journal. This is operational news, so it goes to the admin/alerts channel, never to the message-forwarding (community) targets. If no notification target is configured, nothing is posted. |
+| `ingest.watchdog.notify_on_heal` | `true` | When a self-heal fires, post a heads-up (`"HopWatch watchdog"`) through the dedicated operational-alerts targets (`alerts.ops.*`, set in `/admin/settings -> Notifications -> Operational alerts`), falling back to the general `alerts.delivery.*` targets when `alerts.ops` is empty. This is operational news, so it goes to the admin channel, never to the message-forwarding (community) targets. If neither is configured, nothing is posted. |
 | `ingest.decode.channel_keys[]` | `[{default, AQ==}, {LongTurbo, AQ==}, {Wardrive, AQ==}]` | `{name, key}` base64 channel keys, including the default `AQ==`, LongTurbo (the US firmware default as of Meshtastic v2.8, same default key), and Wardrive (a coverage-mapping channel; default key). The `name` is part of the wire identity, not a label: a key is tried only when `xorHash(name) ^ xorHash(key)` equals the 8-bit hash in `MeshPacket.channel`, so a key entered under the wrong channel name will not decrypt that channel. An empty `key` declares an unencrypted (PSK-less or ham-mode) channel, whose payload is plaintext and is read without decryption. |
 
 ## analytics
@@ -187,6 +187,9 @@ worker's next tick.
 | `alerts.delivery.discord.avatar_url` | `""` | Optional avatar image URL shown next to the name. |
 | `alerts.delivery.discord.webhooks[]` | `[]` | Discord channel webhook URLs. Encrypted at rest. |
 | `alerts.delivery.smtp.{host,port,user,password,from,starttls}` | empty | SMTP settings. |
+| `alerts.ops.discord_webhooks[]` | `[]` | Discord channel webhook URLs for the admin-only operational channel (watchdog self-heals). Encrypted at rest, reported to the browser as a count only. |
+| `alerts.ops.webhook[]` | `[]` | Generic POST URLs for operational alerts. Encrypted at rest. |
+| `alerts.ops.ntfy[]` | `[]` | ntfy topics or full URLs for operational alerts. Encrypted at rest. |
 | `alerts.rules[]` | see example | `{id, type, enabled, channels[]}` plus type fields. |
 
 Channels are `webhook`, `ntfy`, `discord`, and `smtp`. The **discord** channel posts to a Discord
@@ -197,6 +200,15 @@ Integrations -> Webhooks, paste its URL in `/admin/settings -> Notifications -> 
 "Save &amp; send test post" to confirm it. Add `discord` to any rule's or the digest's `channels[]` to
 route to it. `alerts.delivery.discord.webhooks` is encrypted at rest and reported to the browser as a
 count only, exactly like `webhook`/`ntfy`.
+
+**Operational alerts (`alerts.ops`)** are a separate, admin-only delivery channel for HopWatch's own
+operational events (today, the ingest self-heal watchdog). They are kept out of `alerts.delivery` so
+ops chatter lands in an admin channel instead of wherever the alert rules and the daily digest post,
+and never on the message-forwarding (community) targets. Configure them in `/admin/settings ->
+Notifications -> Operational alerts (admin channel)`, with "Save &amp; send test to ops channel" to
+confirm. All three lists are encrypted at rest and reported as counts (Rule 6). When every `alerts.ops`
+list is empty, operational alerts fall back to the `alerts.delivery` targets so they are never silently
+lost.
 
 Rule types and their required fields: `node_offline` (`threshold_minutes`), `battery_threshold`
 (`threshold_volts`), `gateway_silent` (`threshold_minutes`), `channel_util` (`threshold_pct`),

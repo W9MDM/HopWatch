@@ -88,6 +88,11 @@ export default async function AdminSettingsPage() {
         avatar_url: eff.alerts.delivery.discord.avatar_url,
         webhook_count: eff.alerts.delivery.discord.webhooks.length,
       },
+      ops: {
+        discord_count: eff.alerts.ops.discord_webhooks.length,
+        webhook_count: eff.alerts.ops.webhook.length,
+        ntfy_count: eff.alerts.ops.ntfy.length,
+      },
       rules: eff.alerts.rules as unknown as { id: string; type: string; enabled: boolean; channels: ("webhook" | "ntfy" | "discord" | "smtp")[] }[],
       digest: {
         enabled: Boolean((eff.digest as Record<string, unknown>).enabled),

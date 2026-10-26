@@ -338,6 +338,18 @@ const alerts = z
           .default({}),
       })
       .default({}),
+    // Operational / admin alerts: a SEPARATE delivery channel for HopWatch's own operational events
+    // (the ingest self-heal watchdog today), kept apart from `delivery` above so ops chatter lands in
+    // an admin-only channel instead of wherever the alert rules and the daily digest post. Each
+    // webhook/ntfy URL embeds a secret token, encrypted at rest (SECRET_PATHS, Rule 6). When every
+    // list here is empty, operational alerts fall back to `delivery` so they are never silently lost.
+    ops: z
+      .object({
+        discord_webhooks: z.array(z.string().url()).default([]),
+        webhook: z.array(z.string().url()).default([]),
+        ntfy: z.array(z.string()).default([]),
+      })
+      .default({}),
     rules: z.array(alertRule).default([]),
   })
   .default({});
