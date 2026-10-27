@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       topic_suffix: suffix,
       require_ok_to_mqtt: b.require_ok_to_mqtt !== false, // keep true by default
       public_only: b.public_only !== false, // keep true by default
+      all_regions: !!b.all_regions, // false by default: region-scoped to the publish broker
       include_reactions: b.include_reactions !== false, // keep true by default
       channels,
       max_text_chars: Math.min(512, Math.max(1, Number(b.max_text_chars) || 240)),

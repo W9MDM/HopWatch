@@ -705,6 +705,12 @@ export const configSchema = z.object({
       // Only republish channels encrypted with the PUBLIC default key (LongFast/LongTurbo/etc).
       // Never a private/community PSK, even when HopWatch holds the key. Fails closed on unknowns.
       public_only: z.boolean().default(true),
+      // Scope. false (default) = only broadcasts on the publish broker's topic region (its root)
+      // plus the RF station node. true = every public-channel broadcast HopWatch decodes, from all
+      // regions/brokers, republished to this broker's feed topic. true is more complete (it catches
+      // messages that reached another broker but not this one, and cross-posted packets the
+      // per-packet dedup tagged to a different broker) at the cost of carrying other regions' chat.
+      all_regions: z.boolean().default(false),
       // Include tapback reactions (emoji flagged true in the payload). Off drops reaction packets.
       include_reactions: z.boolean().default(true),
       // Channel names to include. Empty = all eligible (public-key) text channels.

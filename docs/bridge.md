@@ -143,10 +143,14 @@ channels and broadcasts only.
 - **Broadcasts only, with consent.** Only channel broadcasts (`to == 0xffffffff`) are published,
   never DMs. `feed.require_ok_to_mqtt` (default true) skips senders who did not set the OK-to-MQTT
   bit, the same consent rule the bridge uses.
-- **Region-scoped.** `feed.broker_id` names the broker to publish to; its topic root is both the
-  publish namespace (`<root>/<topic_suffix>`, default `<root>/hopwatch/v1/text`) and the region
-  filter: only broadcasts whose source topic is under that root (plus the operator's own RF station
-  node) are published, not another region's firehose.
+- **Region-scoped (or not).** `feed.broker_id` names the broker to publish to, and its topic root is
+  the publish namespace (`<root>/<topic_suffix>`, default `<root>/hopwatch/v1/text`). By default
+  (`feed.all_regions` false) that root is also the region filter: only broadcasts whose source topic
+  is under it (plus the operator's own RF station node) are published, not another region's firehose.
+  Set `feed.all_regions` true to instead republish every public-channel broadcast HopWatch decodes,
+  from all regions/brokers, to this feed topic. That is more complete (it catches messages that
+  reached another broker but not this one, and cross-posted packets the per-packet dedup happened to
+  tag to a different broker) at the cost of carrying other regions' chat.
 - **One publish per message.** De-duplicated by mesh packet id across all brokers and the RF node
   (the `text_message` table is already one row per logical packet); each is published at most once
   on first sighting, QoS 0 and not retained. The text is capped at `feed.max_text_chars` (240).

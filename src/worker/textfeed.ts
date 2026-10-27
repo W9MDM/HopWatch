@@ -36,7 +36,7 @@ function isPublicKey(b64: string): boolean {
 
 interface FeedCfg {
   enabled: boolean; armed: boolean; broker_id: string; topic_suffix: string;
-  require_ok_to_mqtt: boolean; public_only: boolean; include_reactions: boolean;
+  require_ok_to_mqtt: boolean; public_only: boolean; all_regions: boolean; include_reactions: boolean;
   channels: string[]; max_text_chars: number;
 }
 
@@ -95,9 +95,14 @@ export async function runTextFeed(cfg: HopWatchConfig, transports: { mqtt: TxTra
   const isPublicChannel = (name: string): boolean =>
     configuredNames.has(name) ? publicNames.has(name) : PRESET_PUBLIC_NAMES.has(name);
 
-  // Candidate broadcasts in the feed region (topic root) or from the operator's own RF node, not
-  // yet considered. The representative reception (preferring an RF-direct copy, else the earliest)
-  // supplies the signal/hops/gateway reported for the message.
+  // Candidate broadcasts not yet considered. Scope: all public broadcasts HopWatch decoded
+  // (all_regions), or only those on the publish broker's topic region plus the operator's own RF
+  // node. The representative reception (preferring an RF-direct copy, else the earliest) supplies
+  // the signal/hops/gateway reported for the message.
+  const regionClause = f.all_regions
+    ? ""
+    : "AND (tm.source_topic LIKE CONCAT(?, '/%') OR tm.source_broker_id = 'node')";
+  const regionParams = f.all_regions ? [] : [root];
   const rows = await query<Row>(
     `SELECT tm.id, tm.from_node_id, tm.channel_id, tm.source_topic, tm.body, tm.observed_at, tm.source_packet_id,
             tm.is_reaction, tm.reply_to_packet_id, n.long_name, n.short_name,
@@ -116,9 +121,9 @@ export async function runTextFeed(cfg: HopWatchConfig, transports: { mqtt: TxTra
         AND tm.to_node_id IS NULL
         AND tm.source_packet_id IS NOT NULL
         AND tm.observed_at >= (UTC_TIMESTAMP() - INTERVAL 15 MINUTE)
-        AND (tm.source_topic LIKE CONCAT(?, '/%') OR tm.source_broker_id = 'node')
+        ${regionClause}
       ORDER BY tm.id ASC LIMIT 200`,
-    [root],
+    regionParams,
   );
   if (rows.length === 0) return 0;
 

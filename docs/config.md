@@ -361,6 +361,7 @@ publishes nothing until an admin turns it on. See `docs/bridge.md`. Managed in `
 | `feed.topic_suffix` | `hopwatch/v1/text` | Appended to the broker's topic root: `<root>/hopwatch/v1/text`. A non-Meshtastic subtree, never re-injected onto RF. |
 | `feed.require_ok_to_mqtt` | `true` | Only publish messages whose sender set the OK-to-MQTT bit. |
 | `feed.public_only` | `true` | Only publish channels encrypted with the PUBLIC default key; never a private/community PSK, even one HopWatch can read. |
+| `feed.all_regions` | `false` | `false` = only broadcasts on the publish broker's topic region (its root) plus the RF station node. `true` = every public-channel broadcast HopWatch decodes, from all regions/brokers, republished to this broker's feed topic. |
 | `feed.include_reactions` | `true` | Include tapback reactions (payload `emoji: true`). Off drops reaction packets. |
 | `feed.channels` | `[]` | Channel names to include; empty = all eligible public-key channels. |
 | `feed.max_text_chars` | `240` | Max UTF-8 chars of body to publish. |

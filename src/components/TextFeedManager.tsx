@@ -7,7 +7,7 @@ import { formatNodeId } from "../meshtastic/types.ts";
 
 export interface FeedSettings {
   enabled: boolean; armed: boolean; broker_id: string; topic_suffix: string;
-  require_ok_to_mqtt: boolean; public_only: boolean; include_reactions: boolean;
+  require_ok_to_mqtt: boolean; public_only: boolean; all_regions: boolean; include_reactions: boolean;
   channels: string[]; max_text_chars: number;
 }
 interface Broker { id: string; host: string; root: string; rootSource: "explicit" | "derived" | "none" }
@@ -63,6 +63,7 @@ export function TextFeedManager({ initial, brokers, channels, initialLog, zone }
         <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.armed} onChange={(e) => setS({ ...s, armed: e.target.checked })} /> Armed (kill switch)</label>
         <label className="flex items-center gap-2 text-[13px] text-ink-mute"><input type="checkbox" checked={s.public_only} onChange={(e) => setS({ ...s, public_only: e.target.checked })} /> Public-key channels only</label>
         <label className="flex items-center gap-2 text-[13px] text-ink-mute"><input type="checkbox" checked={s.require_ok_to_mqtt} onChange={(e) => setS({ ...s, require_ok_to_mqtt: e.target.checked })} /> Require OK-to-MQTT</label>
+        <label className="flex items-center gap-2 text-[13px] text-ink-mute"><input type="checkbox" checked={s.all_regions} onChange={(e) => setS({ ...s, all_regions: e.target.checked })} /> All regions</label>
         <label className="flex items-center gap-2 text-[13px] text-ink-mute"><input type="checkbox" checked={s.include_reactions} onChange={(e) => setS({ ...s, include_reactions: e.target.checked })} /> Include reactions</label>
       </div>
       <p className="text-[11px] text-ink-faint">
@@ -93,7 +94,9 @@ export function TextFeedManager({ initial, brokers, channels, initialLog, zone }
         {!target ? <p className="text-[12px] text-ink-faint">Select a broker above.</p>
           : destTopic ? <p className="text-[12px]"><span className="mono text-ink">{destTopic}</span></p>
             : <p className="text-[12px] text-accent-strong">Broker <b>{target.id}</b> has no resolvable topic root; set its Root topic in ingest settings so the feed has somewhere to publish and a region to scope to.</p>}
-        <p className="text-[11px] text-ink-faint">The broker&apos;s topic root also scopes the feed to that region: only broadcasts on <span className="mono">{(target?.root || "<root>") + "/..."}</span> (plus your own RF station node) are published, not another region&apos;s firehose.</p>
+        {s.all_regions
+          ? <p className="text-[11px] text-ink-faint"><b>All regions</b> is on: every public-channel broadcast HopWatch decodes is republished here, including other brokers&apos; and regions&apos; chat. The broker&apos;s topic root is only the publish destination, not a filter.</p>
+          : <p className="text-[11px] text-ink-faint">The broker&apos;s topic root also scopes the feed to that region: only broadcasts on <span className="mono">{(target?.root || "<root>") + "/..."}</span> (plus your own RF station node) are published, not another region&apos;s firehose. Turn on <b>All regions</b> to publish every public broadcast HopWatch decodes.</p>}
       </div>
 
       <div className="space-y-1">
