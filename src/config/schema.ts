@@ -430,6 +430,10 @@ export const configSchema = z.object({
           enabled: z.boolean().default(false),
           max_distance_km: z.number().positive().default(60),
           terrain: z.boolean().default(false),
+          // Elevation data for terrain profiles. usgs_3dep is authoritative US 1 m data with no
+          // key or quota and returns a whole profile per request; open_elevation uses
+          // elevation_url (a self-hosted or non-US endpoint). See docs/config.md.
+          elevation_source: z.enum(["usgs_3dep", "open_elevation"]).default("usgs_3dep"),
           antenna_height_m: z.number().default(3),
           elevation_url: z.string().default("https://api.open-elevation.com/api/v1/lookup"),
         })

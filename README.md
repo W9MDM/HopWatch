@@ -239,9 +239,10 @@ Node processes; the only channel between them is the database.
   direct (zero-hop) receptions rising above the line and relayed ones below. Headline cards show
   total direct/relayed, dupe rate, mean SNR, and a decode-error count; selectable 12h/24h/3d/7d
   window and 10m/15m/30m/1h bucket, with a hover crosshair. A compact strip also sits on the dashboard.
-- **RF / propagation:** link-budget validator (FSPL, Fresnel clearance, optional terrain),
-  a **line-of-sight (LOS)** profile (the picked pair is encoded in the URL, so a comparison is a
-  shareable link, with a Copy link button), tropospheric-propagation detection with a **space-weather**
+- **RF / propagation:** link-budget validator (FSPL, Fresnel clearance, optional terrain from
+  USGS 3DEP elevation, cached per point), a **line-of-sight (LOS)** profile (the picked pair is
+  encoded in the URL, so a comparison is a shareable link, with a Copy link button),
+  tropospheric-propagation detection with a **space-weather**
   conditions panel (NOAA SWPC Kp / solar flux / solar wind), a **site planner** (drop a
   candidate node, predict its coverage and which existing nodes/gaps it would newly cover),
   and network records.

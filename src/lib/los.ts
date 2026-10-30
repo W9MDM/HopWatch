@@ -1,4 +1,5 @@
 import { haversineKm } from "./geo.ts";
+import { fetchElevations, normalizeSource, type ElevationSource } from "./elevation.ts";
 
 /**
  * First Fresnel-zone radius in metres at a point along the path.
@@ -45,7 +46,7 @@ interface Endpoint { lat: number; lon: number; antennaM: number }
 export async function computeLos(
   a: Endpoint,
   b: Endpoint,
-  opts: { freqMhz?: number; elevationUrl?: string; samples?: number } = {},
+  opts: { freqMhz?: number; source?: ElevationSource; elevationUrl?: string; samples?: number } = {},
 ): Promise<LosResult> {
   const freqMhz = opts.freqMhz && opts.freqMhz > 0 ? opts.freqMhz : 915;
   const fGHz = freqMhz / 1000;
@@ -58,25 +59,18 @@ export async function computeLos(
     distance_km: distanceKm, fspl_db: fspl, fresnel_max_m: fresnelMax,
     has_terrain: false, clearance_m: null, obstructed: false, a_ground_m: null, b_ground_m: null, samples: [],
   };
-  if (!opts.elevationUrl) return base;
 
+  // Sample the ground profile from the elevation source (USGS 3DEP by default), cached by
+  // elevation.ts. If any point is unknown the profile is incomplete, so fall back to the
+  // free-space base rather than report a misleading clearance.
   const N = Math.min(64, Math.max(8, opts.samples ?? 40));
-  const locations = Array.from({ length: N + 1 }, (_, i) => {
+  const points = Array.from({ length: N + 1 }, (_, i) => {
     const f = i / N;
-    return { latitude: a.lat + (b.lat - a.lat) * f, longitude: a.lon + (b.lon - a.lon) * f };
+    return { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
   });
-  let elev: number[];
-  try {
-    const res = await fetch(opts.elevationUrl, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ locations }),
-    });
-    if (!res.ok) return base;
-    const j: any = await res.json();
-    elev = (j?.results ?? []).map((r: any) => Number(r.elevation));
-    if (elev.length !== N + 1 || elev.some((e) => !Number.isFinite(e))) return base;
-  } catch {
-    return base;
-  }
+  const elevRaw = await fetchElevations(points, { source: normalizeSource(opts.source), url: opts.elevationUrl });
+  if (elevRaw.length !== N + 1 || elevRaw.some((e) => e == null)) return base;
+  const elev = elevRaw as number[];
 
   const g0 = elev[0]! + a.antennaM;
   const gN = elev[N]! + b.antennaM;

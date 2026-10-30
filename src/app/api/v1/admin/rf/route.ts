@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
         enabled: !!b.link_budget?.enabled,
         max_distance_km: num(b.link_budget?.max_distance_km, 60, 1, 500),
         terrain: !!b.link_budget?.terrain,
+        elevation_source: b.link_budget?.elevation_source === "open_elevation" ? "open_elevation" : "usgs_3dep",
         antenna_height_m: num(b.link_budget?.antenna_height_m, 3, 0, 1000),
         elevation_url: String(b.link_budget?.elevation_url ?? "https://api.open-elevation.com/api/v1/lookup").slice(0, 300),
       },

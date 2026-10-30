@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export interface RfSettings {
-  link_budget: { enabled: boolean; max_distance_km: number; terrain: boolean; antenna_height_m: number; elevation_url: string };
+  link_budget: { enabled: boolean; max_distance_km: number; terrain: boolean; elevation_source: "usgs_3dep" | "open_elevation"; antenna_height_m: number; elevation_url: string };
   propagation: { enabled: boolean; baseline_window_hours: number; improvement_threshold_db: number; dx_distance_threshold_km: number };
   weather: { enabled: boolean; stations: string[] };
   space_weather: { enabled: boolean; refresh_interval_minutes: number; kp_url: string; flux_url: string; solar_wind_url: string };
@@ -42,10 +42,21 @@ export function RfManager({ initial, coverage }: { initial: RfSettings; coverage
         <div className="flex flex-wrap gap-3">
           <label className="space-y-1"><span className="block stat-label">Max distance (km)</span><input type="number" value={String(s.link_budget.max_distance_km)} onChange={(e) => lb("max_distance_km", Number(e.target.value))} className={inputCls} /></label>
           <label className="space-y-1"><span className="block stat-label">Antenna height (m)</span><input type="number" value={String(s.link_budget.antenna_height_m)} onChange={(e) => lb("antenna_height_m", Number(e.target.value))} className={inputCls} /></label>
-          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.link_budget.terrain} onChange={(e) => lb("terrain", e.target.checked)} /> Terrain clearance (elevation API)</label>
+          <label className="flex items-center gap-2 text-[13px] text-ink"><input type="checkbox" checked={s.link_budget.terrain} onChange={(e) => lb("terrain", e.target.checked)} /> Terrain clearance (elevation source)</label>
         </div>
         {s.link_budget.terrain && (
-          <label className="space-y-1"><span className="block stat-label">Elevation API URL</span><input value={s.link_budget.elevation_url} onChange={(e) => lb("elevation_url", e.target.value)} className={`${inputCls} w-full max-w-xl`} /></label>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="space-y-1">
+              <span className="block stat-label">Elevation source</span>
+              <select value={s.link_budget.elevation_source} onChange={(e) => lb("elevation_source", e.target.value as RfSettings["link_budget"]["elevation_source"])} className={inputCls}>
+                <option value="usgs_3dep">USGS 3DEP (US, 1 m)</option>
+                <option value="open_elevation">Open-Elevation (custom URL)</option>
+              </select>
+            </label>
+            {s.link_budget.elevation_source === "open_elevation" && (
+              <label className="space-y-1"><span className="block stat-label">Elevation API URL</span><input value={s.link_budget.elevation_url} onChange={(e) => lb("elevation_url", e.target.value)} className={`${inputCls} w-full max-w-xl`} /></label>
+            )}
+          </div>
         )}
       </div>
 

@@ -1,6 +1,7 @@
 import { query } from "../db/client.ts";
 import { toMysqlUtc } from "../lib/time.ts";
 import { fresnelRadiusM, fresnelMaxM } from "../lib/los.ts";
+import { fetchElevations, normalizeSource, type ElevationSource } from "../lib/elevation.ts";
 import type { HopWatchConfig } from "../config/schema.ts";
 
 // Link budget validator. For direct-link pairs with known positions, compute the
@@ -39,6 +40,7 @@ export async function computeLinkBudgets(cfg: HopWatchConfig): Promise<number> {
 
   const terrainOn = Boolean(lb.terrain);
   const antenna = Number(lb.antenna_height_m ?? 3);
+  const source = normalizeSource(lb.elevation_source);
   const elevationUrl = String(lb.elevation_url ?? "https://api.open-elevation.com/api/v1/lookup");
 
   let n = 0;
@@ -62,7 +64,7 @@ export async function computeLinkBudgets(cfg: HopWatchConfig): Promise<number> {
     // now NULL, which the UI already renders as "-".
     let fresnelClearance: number | null = null;
     if (terrainOn) {
-      const terr = await sampleTerrain(p, d, antenna, elevationUrl).catch(() => null);
+      const terr = await sampleTerrain(p, d, antenna, source, elevationUrl).catch(() => null);
       if (terr) {
         profile.samples = terr.samples;
         fresnelClearance = terr.clearance_m;
@@ -85,28 +87,24 @@ export async function computeLinkBudgets(cfg: HopWatchConfig): Promise<number> {
 
 interface Sample { d_km: number; ground_m: number; los_m: number; fresnel_bottom_m: number }
 
-// Sample the terrain profile along the path from an open elevation dataset and compute
-// first-Fresnel-zone clearance. Best-effort: returns null if the elevation source fails.
+// Sample the terrain profile along the path from the elevation source (USGS 3DEP by default,
+// cached by elevation.ts) and compute first-Fresnel-zone clearance. Best-effort: returns null
+// if the profile is incomplete.
 async function sampleTerrain(
   p: { ga_lat: number; ga_lon: number; nb_lat: number; nb_lon: number },
   distanceKm: number,
   antennaM: number,
+  source: ElevationSource,
   url: string,
 ): Promise<{ samples: Sample[]; clearance_m: number } | null> {
   const N = 24;
-  const locations = Array.from({ length: N + 1 }, (_, i) => {
+  const points = Array.from({ length: N + 1 }, (_, i) => {
     const f = i / N;
-    return { latitude: p.ga_lat + (p.nb_lat - p.ga_lat) * f, longitude: p.ga_lon + (p.nb_lon - p.ga_lon) * f };
+    return { lat: p.ga_lat + (p.nb_lat - p.ga_lat) * f, lon: p.ga_lon + (p.nb_lon - p.ga_lon) * f };
   });
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ locations }),
-  });
-  if (!res.ok) return null;
-  const j: any = await res.json();
-  const elev: number[] = (j?.results ?? []).map((r: any) => Number(r.elevation));
-  if (elev.length !== N + 1) return null;
+  const elevRaw = await fetchElevations(points, { source, url });
+  if (elevRaw.length !== N + 1 || elevRaw.some((e) => e == null)) return null;
+  const elev = elevRaw as number[];
 
   const g0 = elev[0]! + antennaM;
   const gN = elev[N]! + antennaM;

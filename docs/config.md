@@ -248,9 +248,10 @@ with a 304) and accepts `?pretty=1` for indented output.
 |---|---|---|
 | `rf.link_budget.enabled` | `false` | Enable the link-budget validator (FSPL, Fresnel, optional terrain). |
 | `rf.link_budget.max_distance_km` | `60` | Max link distance considered. |
-| `rf.link_budget.terrain` | `false` | Use terrain/elevation lookups. |
-| `rf.link_budget.antenna_height_m` | `3` | Assumed antenna height when unknown. |
-| `rf.link_budget.elevation_url` | open-elevation | Elevation lookup endpoint. |
+| `rf.link_budget.terrain` | `false` | Sample a ground profile and compute first-Fresnel-zone clearance. |
+| `rf.link_budget.elevation_source` | `usgs_3dep` | Elevation data source. `usgs_3dep` is authoritative US 1 m data (no key, no quota, one request per profile) and is US-only; `open_elevation` uses `elevation_url`. Sampled points are cached permanently in `elevation_cache` (terrain is static), so only new points hit the source. |
+| `rf.link_budget.antenna_height_m` | `3` | Assumed antenna height when a node has no `rf_height_m`. |
+| `rf.link_budget.elevation_url` | open-elevation | Endpoint used only when `elevation_source` is `open_elevation` (e.g. a self-hosted Open-Elevation). |
 | `rf.propagation.enabled` | `false` | Enable tropospheric-propagation detection. |
 | `rf.propagation.baseline_window_hours` | `24` | Rolling per-link RSSI baseline window. |
 | `rf.propagation.improvement_threshold_db` | `10` | dB a link must beat its baseline by to log an `enhancement` event. |

@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
 
   const lb = ((await effectiveConfig()).rf as Record<string, any>)?.link_budget ?? {};
   const defAnt = Number(lb.antenna_height_m ?? 3);
+  const source = lb.elevation_source === "open_elevation" ? "open_elevation" : "usgs_3dep";
   const elevationUrl = String(lb.elevation_url ?? "https://api.open-elevation.com/api/v1/lookup") || undefined;
   const aAnt = a.rf_height_m != null ? Number(a.rf_height_m) : defAnt;
   const bAnt = b.rf_height_m != null ? Number(b.rf_height_m) : defAnt;
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   const los = await computeLos(
     { lat: a.latitude, lon: a.longitude, antennaM: aAnt },
     { lat: b.latitude, lon: b.longitude, antennaM: bAnt },
-    { elevationUrl },
+    { source, elevationUrl },
   );
   return NextResponse.json({
     a: { node_id: a.node_id, name: a.name, antenna_m: aAnt },
